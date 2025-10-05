@@ -153,6 +153,33 @@ const Chatbot = () => {
     return fixed.join('\n\n');
   };
 
+  // Render text into paragraphs and bullet lists for professional layout
+  const renderMessageText = (text) => {
+    if (!text) return null;
+    const paragraphs = text
+      .replace(/\r/g, '')
+      .split(/\n{2,}/) // paragraph breaks
+      .map(p => p.trim())
+      .filter(Boolean);
+
+    return paragraphs.map((para, idx) => {
+      const lines = para.split(/\n/).map(l => l.trim()).filter(Boolean);
+      const bulletLines = lines.filter(l => /^•\s+/.test(l));
+      const isMostlyBullets = bulletLines.length >= Math.max(2, Math.ceil(lines.length * 0.6));
+
+      if (isMostlyBullets) {
+        return (
+          <ul key={idx}>
+            {lines
+              .filter(l => /^•\s+/.test(l))
+              .map((l, i) => <li key={i}>{l.replace(/^•\s*/, '')}</li>)}
+          </ul>
+        );
+      }
+      return <p key={idx}>{para.replace(/^•\s*/g, '')}</p>;
+    });
+  };
+
   return (
     <>
       {/* Chatbot Toggle Button (the floating icon) */}
@@ -197,17 +224,7 @@ const Chatbot = () => {
             )}
             {messages.map((msg, index) => (
               <div key={index} className={`message ${msg.sender}`}>
-                {msg.text.includes('\n') && msg.text.split('\n').every(l => l.startsWith('• ')) ? (
-                  <ul>
-                    {msg.text.split('\n').map((line, i) => (
-                      <li key={i}>{line.replace(/^•\s*/, '')}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  msg.text.split('\n').map((line, i, arr) => (
-                    <span key={i}>{line}{i < arr.length - 1 ? <br/> : null}</span>
-                  ))
-                )}
+                {renderMessageText(msg.text)}
               </div>
             ))}
             <div ref={messagesEndRef} /> {/* Invisible element to scroll to */}

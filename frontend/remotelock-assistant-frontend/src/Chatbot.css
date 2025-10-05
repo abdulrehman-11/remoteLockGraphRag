@@ -114,16 +114,16 @@
   padding: 10px 14px;
   border-radius: 18px; /* Rounded bubbles */
   max-width: 80%; /* Adjusted max-width */
-  word-wrap: break-word;
+  word-wrap: normal; /* legacy alias; keep normal */
   font-size: 14.5px; /* Slightly larger text */
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); /* Subtle shadow for bubbles */
   /* Enforce horizontal, left-to-right text flow and sane wrapping */
   writing-mode: horizontal-tb;
-  word-break: normal;
-  overflow-wrap: anywhere;
+  word-break: normal; /* do not break characters */
+  overflow-wrap: break-word; /* break long words only when necessary */
   letter-spacing: normal;
   direction: ltr;
-  white-space: normal;
+  white-space: pre-wrap; /* preserve newlines from the message */
 }
 
 .message.user {
@@ -141,9 +141,9 @@
   margin-right: auto;
   border-bottom-left-radius: 4px; /* Distinct corner */
   /* Prefer normal wrapping and enforce horizontal flow (avoid per-character wrapping) */
-  white-space: normal;
+  white-space: pre-wrap;
   word-break: normal;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   writing-mode: horizontal-tb;
   letter-spacing: normal;
   direction: ltr;
