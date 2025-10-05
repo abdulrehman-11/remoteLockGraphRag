@@ -5,6 +5,7 @@ from typing import Annotated, List, Tuple, Union, Dict, Any, TypedDict
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -26,6 +27,10 @@ load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY environment variable not set.")
+
+# CORS configuration for browser-based frontends (e.g., Vercel)
+ALLOWED_ORIGINS_ENV = os.getenv("ALLOWED_ORIGINS", "")
+ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS_ENV.split(",") if origin.strip()]
 
 # Initialize the retriever instance once when the FastAPI app starts
 # This ensures database connections are established on startup
@@ -720,6 +725,15 @@ app = FastAPI(
     title="RemoteLock Customer Support Agent",
     description="An AI-powered customer support agent for RemoteLock documentation, built with LangGraph and FastAPI.",
     version="1.0.0",
+)
+
+# Enable CORS so a deployed frontend can call the API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS or ["*"],  # Prefer explicit origins via ALLOWED_ORIGINS env
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Model for incoming chat messages
