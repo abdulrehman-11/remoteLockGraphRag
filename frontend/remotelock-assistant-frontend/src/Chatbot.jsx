@@ -1,0 +1,241 @@
+import React, { useState, useRef, useEffect } from 'react';
+import './Chatbot.css'; // Link to our chatbot specific styles
+
+const Chatbot = () => {
+  const [isOpen, setIsOpen] = useState(false); // Controls chat window visibility
+  const [messages, setMessages] = useState([]); // Stores chat messages
+  const [inputValue, setInputValue] = useState(''); // Stores current input field value
+  const [isLoading, setIsLoading] = useState(false); // Shows typing indicator
+  const messagesEndRef = useRef(null); // Ref for auto-scrolling to the latest message
+
+  // Effect to scroll to the bottom of the messages display whenever new messages are added
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Toggles the chat window open/closed
+  const toggleChat = () => {
+    setIsOpen(!isOpen);
+  };
+
+  // Handles sending a user message and triggering a bot response
+  const handleSendMessage = async (e) => {
+    e.preventDefault(); // Prevent default form submission behavior
+    if (inputValue.trim() === '') return; // Don't send empty messages
+
+    const newUserMessage = { text: inputValue, sender: 'user' };
+    setMessages((prevMessages) => [...prevMessages, newUserMessage]); // Add user message
+    const messageToSend = inputValue;
+    setInputValue(''); // Clear input field
+
+    // Send message to backend chat endpoint
+    setIsLoading(true);
+    try {
+      const API_BASE = (import.meta && import.meta.env && import.meta.env.VITE_API_URL) ? import.meta.env.VITE_API_URL : 'http://localhost:8000';
+      const resp = await fetch(`${API_BASE.replace(/\/$/, '')}/chat/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: messageToSend }),
+      });
+
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      const rawReply = data.response || "Sorry, no reply.";
+      const botReply = sanitizeReply(rawReply);
+      setMessages((prevMessages) => [...prevMessages, { text: botReply, sender: 'bot' }]);
+    } catch (err) {
+      console.error('Chat request failed', err);
+      setMessages((prevMessages) => [...prevMessages, { text: "Sorry, I'm having trouble connecting right now.", sender: 'bot' }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Simple keyword-based bot response logic
+  const generateBotResponse = (userMessage) => {
+    const lowerCaseMessage = userMessage.toLowerCase();
+
+    if (lowerCaseMessage.includes('hello') || lowerCaseMessage.includes('hi')) {
+      return "Hello! Welcome to RemoteLock Support. How can I assist you today?";
+    } else if (lowerCaseMessage.includes('account')) {
+      return "For account-related issues, please visit our 'My Account' section or contact our support team directly.";
+    } else if (lowerCaseMessage.includes('lock') || lowerCaseMessage.includes('device')) {
+      return "Are you having trouble with a specific lock or device? Please provide more details.";
+    } else if (lowerCaseMessage.includes('troubleshooting')) {
+        return "Our troubleshooting guides can be found on our support page under 'Troubleshooting & FAQs'.";
+    } else if (lowerCaseMessage.includes('contact')) {
+        return "You can reach our support team via phone at [Your Phone Number] or by submitting a ticket on our 'Contact Us' page.";
+    } else if (lowerCaseMessage.includes('thanks') || lowerCaseMessage.includes('thank you')) {
+        return "You're welcome! Is there anything else I can help you with?";
+    } else {
+      return "I'm sorry, I don't understand that. Can you please rephrase or ask about common topics like 'account', 'lock', 'troubleshooting', or 'contact'?";
+    }
+  };
+
+  // Sanitize and format replies from the LLM/backend
+  const sanitizeReply = (text) => {
+    if (!text) return '';
+    // Remove common control chars and excessive asterisks/markdown artifacts
+    let s = text.replace(/\r/g, '')
+                .replace(/\*{2,}/g, '')        // remove repeated asterisks
+                .replace(/[_~`]{1,}/g, '')      // remove simple markdown markers
+                .trim();
+
+  // Remove zero-width and odd invisible characters, collapse multiple whitespace
+  s = s.replace(/[\u200B\u200C\u200D\uFEFF]/g, '');
+  s = s.replace(/\s{2,}/g, ' ');
+
+  // Collapse weird inter-letter spacing like "R e m o t e" -> "Remote"
+  // and collapse newline-separated single letters like:
+  // R\n e\n m\n o\n t\n e  -> Remote
+  // We'll replace runs of single-letter tokens separated by spaces/newlines with joined words.
+  s = s.replace(/(?:\b(?:[A-Za-z](?:[ \t\n\r]+|$)){3,})/g, (match) => {
+    // remove whitespace between letters
+    const lettersOnly = match.replace(/[^A-Za-z\n\r ]+/g, '').replace(/[\n\r\s]+/g, '');
+    return lettersOnly;
+  });
+
+  // Split into lines and trim each line
+  let lines = s.split('\n').map(l => l.trim()).filter(Boolean);
+
+    // Normalize list markers: convert leading '* ', '- ', '+ ', '• ', or '1.' to a single bullet marker '• '
+    const normalized = lines.map((line) => {
+      // Match common list prefixes
+      const m = line.match(/^\s*([*+\-•]|\d+\.)\s+(.*)$/);
+      if (m) return `• ${m[2].trim()}`;
+      // If a line itself is a sequence of single letters separated by spaces or newlines, join them
+      if (/^(?:[A-Za-z](?:[ \t\n\r]+|$)){2,}$/.test(line)) {
+        return line.replace(/[\s\n\r]+/g, '');
+      }
+      // Also remove stray leading asterisks or bullets
+      return line.replace(/^\s*[\*•]\s?/, '').trim();
+    }).filter(l => l && !/^\s*[-*]{2,}$/.test(l));
+
+    // If many lines are bullets (start with '• '), keep them as a bullet list separated by newlines
+    const bulletCount = normalized.filter(l => l.startsWith('• ')).length;
+    if (bulletCount >= 2) {
+      return normalized.join('\n');
+    }
+
+    // Otherwise collapse multiple blank lines into single paragraph breaks
+    const paragraphs = normalized.join('\n').split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+    // Fix pathological cases where characters are spaced out like 'R e m o t e'
+    const fixed = paragraphs.map((p) => {
+      // If a paragraph has many single-character tokens in a row, join contiguous runs
+      const tokens = p.split(/(\s+)/); // keep whitespace tokens
+      let out = '';
+      let run = [];
+      const flushRun = () => {
+        if (run.length === 0) return;
+        // decide if we should join run tokens
+        const runTokens = run.join('').trim().split(/\s+/).filter(Boolean);
+        const singleCount = runTokens.filter(t => t.length === 1).length;
+        if (runTokens.length > 3 && singleCount / runTokens.length > 0.5) {
+          out += runTokens.join('');
+        } else {
+          out += run.join('');
+        }
+        run = [];
+      };
+      for (let tok of tokens) {
+        if (/^\s+$/.test(tok)) {
+          run.push(tok);
+        } else if (tok.length === 1 && /[A-Za-z0-9]/.test(tok)) {
+          run.push(tok + ' ');
+        } else {
+          flushRun();
+          out += tok;
+        }
+      }
+      flushRun();
+      return out.trim();
+    });
+    return fixed.join('\n\n');
+  };
+
+  return (
+    <>
+      {/* Chatbot Toggle Button (the floating icon) */}
+      <button className="chatbot-toggle-button" onClick={toggleChat} aria-label={isOpen ? "Close Chat" : "Open Chat"}>
+        {isOpen ? (
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+            <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ) : (
+          // Simple logo mark for RemoteLock (stylized lock)
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+            <rect x="3" y="10" width="18" height="11" rx="2" stroke="white" strokeWidth="1.5" fill="#0f4c5c" />
+            <path d="M7 10V7a5 5 0 0110 0v3" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        )}
+      </button>
+
+      {/* Chat Window - conditionally rendered based on 'isOpen' state */}
+      {/* The 'is-open' class is added for smooth CSS transitions */}
+      {/* This ensures the visibility and transform animations work as defined in Chatbot.css */}
+      {isOpen && (
+        <div className={`chatbot-window ${isOpen ? 'is-open' : ''}`}>
+          {/* Chat Window Header */}
+          <div className="chatbot-header">
+            RemoteLock Support
+            <button className="chatbot-close-button" onClick={toggleChat} aria-label="Minimize Chat">
+              <i className="fas fa-minus"></i> {/* Minus icon to minimize */}
+            </button>
+          </div>
+
+          {/* Chat Messages Display Area */}
+          <div className="chatbot-messages">
+            {messages.length === 0 && (
+              <div className="chatbot-welcome-message">
+                Hi there! I'm your RemoteLock Support Assistant. How can I help you today?
+              </div>
+            )}
+            {isLoading && (
+              <div className="typing-indicator">
+                <div className="typing-dots"><span></span><span></span><span></span></div>
+              </div>
+            )}
+            {messages.map((msg, index) => (
+              <div key={index} className={`message ${msg.sender}`}>
+                {msg.text.includes('\n') && msg.text.split('\n').every(l => l.startsWith('• ')) ? (
+                  <ul>
+                    {msg.text.split('\n').map((line, i) => (
+                      <li key={i}>{line.replace(/^•\s*/, '')}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  msg.text.split('\n').map((line, i, arr) => (
+                    <span key={i}>{line}{i < arr.length - 1 ? <br/> : null}</span>
+                  ))
+                )}
+              </div>
+            ))}
+            <div ref={messagesEndRef} /> {/* Invisible element to scroll to */}
+          </div>
+
+          {/* User Input Area */}
+          <form className="chatbot-input-area" onSubmit={handleSendMessage}>
+            <input
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder="Type your message..."
+              aria-label="Type your message"
+              disabled={isLoading}
+            />
+            <button type="submit" aria-label="Send Message" className="send-button" disabled={isLoading || inputValue.trim() === ''}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                <path d="M22 2L11 13" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M22 2L15 22l-4-9-9-4 20-7z" stroke="white" strokeWidth="0" fill="white" opacity="0.0001" />
+                <path d="M11 13l-4 4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </form>
+        </div>
+      )}
+    </>
+  );
+};
+
+export default Chatbot;
+
