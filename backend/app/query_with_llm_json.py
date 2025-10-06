@@ -21,9 +21,14 @@ warnings.filterwarnings('ignore')
 load_dotenv()
 
 # --- Configuration ---
-NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
-NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "123456789")
+# NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+# NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
+# NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "123456789")
+
+NEO4J_URI = "neo4j+s://d3db84ff.databases.neo4j.io" # This is a placeholder, replace with your actual AuraDB URI
+NEO4J_USER = "neo4j" # For AuraDB, the default user is typically 'neo4j'
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD") # Loaded from .env
+
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 
@@ -746,7 +751,7 @@ class ProductionRetriever:
         # Initialize LLM
         print("[2/4] Loading Gemini...")
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash-exp",
+            model="gemini-2.5-flash",
             temperature=0,
             google_api_key=GEMINI_API_KEY
         )
@@ -1177,7 +1182,7 @@ class ProductionRetriever:
       
       # Apply _rank_results to the *raw* vector results to score them
       scored_vector_results = self._rank_results(raw_vector_results, question)
-      # Take only the top 5 most relevant vector results
+      # Take only the top 10 most relevant vector results
       top_5_vector_results = scored_vector_results[:5]
 
       # --- Step 3: (Retain existing hybrid logic for internal use/display if needed) ---
@@ -1304,7 +1309,7 @@ def main():
         print("Goodbye!\n")
 
 
-print(ProductionRetriever().retrieve("Mortise Latch Change of Handing Instructions"))
+#print(ProductionRetriever().retrieve("What are the two ways to activate or start the WiFi radio on a Key In Code lock?"))
 
 # if __name__ == "__main__":
 #     main()
