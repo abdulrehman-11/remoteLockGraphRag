@@ -752,9 +752,7 @@ def call_llm(state: GraphState) -> GraphState:
     "    **DO NOT default to 'contact support' if relevant information is present in the retrieved content.**\n"
     "8.  **Strictly Adhere to Retrieved Content:** DO NOT generate made-up information or infer details not present "
     "    in the retrieved documentation. Your response must be strictly based on the provided content.\n\n"
-    "Sitemap Structure (for contextual understanding, DO NOT directly output this to the user unless specifically asked):\n"
-    f"{sitemap_context}\n"
-    "--------------------\n"
+
     "Begin conversation:"
 )
 
