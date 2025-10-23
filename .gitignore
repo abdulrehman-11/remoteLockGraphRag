@@ -48,3 +48,7 @@ logs/
 scraped_data.json
 remotelock_nodes*.json
 troubleshooting*.json
+
+# Temporary files
+backend/requirements_temp.txt
+backend/requirements_utf8.txt

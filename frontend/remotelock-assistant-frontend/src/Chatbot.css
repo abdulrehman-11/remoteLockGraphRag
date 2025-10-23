@@ -1,105 +1,104 @@
 /* General Chatbot positioning */
 .chatbot-toggle-button {
-  position: fixed;
-  bottom: 30px; /* Slightly higher from the bottom */
-  right: 30px; /* Slightly further from the right */
-  background-color: #0f4c5c; /* Dark teal/blue from content blocks */
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 60px; /* Slightly larger, more prominent toggle */
-  height: 60px;
-  font-size: 26px; /* Larger icon */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3); /* More defined shadow */
-  z-index: 1000;
-  transition: transform 0.3s ease-in-out, background-color 0.3s ease; /* Smoother transition */
+    position: fixed;
+    bottom: 30px; /* Slightly higher from the bottom */
+    right: 30px; /* Slightly further from the right */
+    background-color: #0f4c5c; /* Dark teal/blue from content blocks */
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 60px; /* Slightly larger, more prominent toggle */
+    height: 60px;
+    font-size: 26px; /* Larger icon */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3); /* More defined shadow */
+    z-index: 1000;
+    transition: transform 0.3s ease-in-out, background-color 0.3s ease; /* Smoother transition */
 }
 
 .chatbot-toggle-button:hover {
-  transform: scale(1.08); /* More noticeable hover effect */
-  background-color: #0c3d49; /* Darker shade on hover */
+    transform: scale(1.08); /* More noticeable hover effect */
+    background-color: #0c3d49; /* Darker shade on hover */
 }
 
 /* Chat window appearance */
 .chatbot-window {
-  position: fixed;
-  bottom: 110px; /* Positioned above the larger toggle button */
-  right: 30px;
-  width: 380px; /* Adjusted width */
-  height: 520px; /* Adjusted height */
-  background-color: #ffffff;
-  border-radius: 8px; /* Consistent with site's subtle rounding */
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3); /* Stronger, more elegant shadow */
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  z-index: 999;
-  font-family: 'Segoe UI', Arial, sans-serif; /* Clean, modern font */
-  color: #333;
-  /* Initial hidden state for smooth animation */
-  opacity: 0;
-  transform: translateY(20px) scale(0.95); /* Start slightly smaller and lower */
-  visibility: hidden; /* Hide completely when not open */
-  pointer-events: none; /* Disable interaction when hidden */
-  transition: opacity 0.3s ease-out, transform 0.3s ease-out, visibility 0.3s;
+    position: fixed;
+    bottom: 110px; /* Positioned above the larger toggle button */
+    right: 30px;
+    width: 380px; /* Adjusted width */
+    height: 600px; /* Increased height to accommodate contact info */
+    background-color: #ffffff;
+    border-radius: 8px; /* Consistent with site's subtle rounding */
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3); /* Stronger, more elegant shadow */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 999;
+    font-family: 'Segoe UI', Arial, sans-serif; /* Clean, modern font */
+    color: #333;
+    /* Initial hidden state for smooth animation */
+    opacity: 0;
+    transform: translateY(20px) scale(0.95); /* Start slightly smaller and lower */
+    visibility: hidden; /* Hide completely when not open */
+    pointer-events: none; /* Disable interaction when hidden */
+    transition: opacity 0.3s ease-out, transform 0.3s ease-out, visibility 0.3s;
 }
 
 /* State when chat window is open */
 .chatbot-window.is-open {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  visibility: visible;
-  pointer-events: auto;
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    visibility: visible;
+    pointer-events: auto;
 }
-
 
 /* Header Styling */
 .chatbot-header {
-  background-color: #0f4c5c; /* Dark teal/blue for the header */
-  color: white;
-  padding: 12px 18px; /* More generous padding */
-  font-size: 18px;
-  font-weight: 600;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1); /* Subtle separator */
+    background-color: #0f4c5c; /* Dark teal/blue for the header */
+    color: white;
+    padding: 12px 18px; /* More generous padding */
+    font-size: 18px;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1); /* Subtle separator */
 }
 
 .chatbot-close-button {
-  background: none;
-  border: none;
-  color: white;
-  font-size: 22px; /* Slightly larger close icon */
-  cursor: pointer;
-  opacity: 0.9;
-  transition: opacity 0.2s ease;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 22px; /* Slightly larger close icon */
+    cursor: pointer;
+    opacity: 0.9;
+    transition: opacity 0.2s ease;
 }
 
 .chatbot-close-button:hover {
-  opacity: 1;
+    opacity: 1;
 }
 
 /* Ensure inline SVG icons inherit color and size nicely */
 .chatbot-toggle-button svg {
-  display: block;
-  color: white;
+    display: block;
+    color: white;
 }
 
 /* Messages Area */
 .chatbot-messages {
-  flex-grow: 1;
-  padding: 15px;
-  overflow-y: auto;
-  background-color: #fcfcfc; /* Very light, almost white background */
-  line-height: 1.5; /* Improved readability */
-  scroll-behavior: smooth; /* Make JS scroll smooth too */
-  display: flex; /* Use flexbox for messages to align them */
-  flex-direction: column; /* Stack messages vertically */
+    flex-grow: 1;
+    padding: 15px;
+    overflow-y: auto;
+    background-color: #fcfcfc; /* Very light, almost white background */
+    line-height: 1.5; /* Improved readability */
+    scroll-behavior: smooth; /* Make JS scroll smooth too */
+    display: flex; /* Use flexbox for messages to align them */
+    flex-direction: column; /* Stack messages vertically */
 }
 
 .chatbot-welcome-message {
@@ -112,136 +111,223 @@
 }
 
 .message {
-  margin-bottom: 12px; /* More space between messages */
-  padding: 10px 14px;
-  border-radius: 18px; /* Rounded bubbles */
-  max-width: 85%; /* Adjusted max-width for better fit */
-  word-wrap: break-word; /* Ensure long words break within the bubble */
-  font-size: 14.5px; /* Slightly larger text */
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); /* Subtle shadow for bubbles */
-  /* Enforce horizontal, left-to-right text flow and sane wrapping */
-  writing-mode: horizontal-tb;
-  word-break: normal; /* do not break characters */
-  overflow-wrap: break-word; /* break long words only when necessary */
-  letter-spacing: normal;
-  direction: ltr;
-  white-space: pre-wrap; /* preserve newlines from the message */
+    margin-bottom: 12px; /* More space between messages */
+    padding: 10px 14px;
+    border-radius: 18px; /* Rounded bubbles */
+    max-width: 85%; /* Adjusted max-width for better fit */
+    word-wrap: break-word; /* Ensure long words break within the bubble */
+    font-size: 14.5px; /* Slightly larger text */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); /* Subtle shadow for bubbles */
+    /* Enforce horizontal, left-to-right text flow and sane wrapping */
+    writing-mode: horizontal-tb;
+    word-break: normal; /* do not break characters */
+    overflow-wrap: break-word; /* break long words only when necessary */
+    letter-spacing: normal;
+    direction: ltr;
+    white-space: pre-wrap; /* preserve newlines from the message */
 }
 
 .message.user {
-  background-color: #e0f2f7; /* A very light, cool blue/gray */
-  color: #333;
-  align-self: flex-end;
-  margin-left: auto;
-  border-bottom-right-radius: 4px; /* Distinct corner */
+    background-color: #e0f2f7; /* A very light, cool blue/gray */
+    color: #333;
+    align-self: flex-end;
+    margin-left: auto;
+    border-bottom-right-radius: 4px; /* Distinct corner */
 }
 
 .message.bot {
-  background-color: #f0f0f0; /* Light, neutral gray */
-  color: #333;
-  align-self: flex-start;
-  margin-right: auto;
-  border-bottom-left-radius: 4px; /* Distinct corner */
-  /* Prefer normal wrapping and enforce horizontal flow (avoid per-character wrapping) */
-  white-space: pre-wrap;
-  word-break: normal;
-  overflow-wrap: break-word;
-  writing-mode: horizontal-tb;
-  letter-spacing: normal;
-  direction: ltr;
+    background-color: #f0f0f0; /* Light, neutral gray */
+    color: #333;
+    align-self: flex-start;
+    margin-right: auto;
+    border-bottom-left-radius: 4px; /* Distinct corner */
+    /* Prefer normal wrapping and enforce horizontal flow (avoid per-character wrapping) */
+    white-space: pre-wrap;
+    word-break: normal;
+    overflow-wrap: break-word;
+    writing-mode: horizontal-tb;
+    letter-spacing: normal;
+    direction: ltr;
 }
 
 /* Styles for paragraphs within messages */
 .message p {
-  margin: 0 0 8px 0; /* Add bottom margin to paragraphs for spacing */
-  line-height: 1.5;
+    margin: 0 0 8px 0; /* Add bottom margin to paragraphs for spacing */
+    line-height: 1.5;
 }
+
 .message p:last-child {
-  margin-bottom: 0; /* No bottom margin for the last paragraph */
+    margin-bottom: 0; /* No bottom margin for the last paragraph */
 }
 
 .message.bot ul {
-  margin: 6px 0 6px 18px;
-  padding: 0;
-  list-style-position: outside; /* standard bullet position */
-  list-style-type: disc;
-  white-space: normal; /* avoid column-like wrapping */
-  display: block;
+    margin: 6px 0 6px 18px;
+    padding: 0;
+    list-style-position: outside; /* standard bullet position */
+    list-style-type: disc;
+    white-space: normal; /* avoid column-like wrapping */
+    display: block;
 }
+
 .message.bot li {
-  margin-bottom: 6px;
-  line-height: 1.4;
-  display: list-item;
-  text-align: left;
-  white-space: normal;
-  word-break: normal;
+    margin-bottom: 6px;
+    line-height: 1.4;
+    display: list-item;
+    text-align: left;
+    white-space: normal;
+    word-break: normal;
 }
 
 /* Link styling within messages */
 .message a {
-  color: #0f4c5c; /* Use your brand color for links */
-  text-decoration: underline;
-  cursor: pointer;
-  word-break: break-all; /* Allow links to break if they are very long */
+    color: #0f4c5c; /* Use your brand color for links */
+    text-decoration: underline;
+    cursor: pointer;
+    word-break: break-all; /* Allow links to break if they are very long */
 }
 
 .message a:hover {
-  text-decoration: none;
-  color: #0c3d49; /* Darker shade on hover */
+    text-decoration: none;
+    color: #0c3d49; /* Darker shade on hover */
 }
-
 
 /* Typing indicator styles */
 .typing-indicator {
-  display: inline-block;
-  background: #f0f0f0;
-  padding: 8px 12px;
-  border-radius: 16px;
-  margin-bottom: 12px;
-  /* Ensure it's aligned to the left like bot messages */
-  align-self: flex-start;
-  margin-right: auto;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); /* Consistent shadow */
+    display: inline-block;
+    background: #f0f0f0;
+    padding: 8px 12px;
+    border-radius: 16px;
+    margin-bottom: 12px;
+    /* Ensure it's aligned to the left like bot messages */
+    align-self: flex-start;
+    margin-right: auto;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); /* Consistent shadow */
 }
+
 .typing-dots {
-  display: inline-block;
+    display: inline-block;
 }
+
 .typing-dots span {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin: 0 3px;
-  background: #999;
-  border-radius: 50%;
-  opacity: 0.6;
-  animation: blink 1s infinite;
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin: 0 3px;
+    background: #999;
+    border-radius: 50%;
+    opacity: 0.6;
+    animation: blink 1s infinite;
 }
-.typing-dots span:nth-child(2) { animation-delay: 0.15s }
-.typing-dots span:nth-child(3) { animation-delay: 0.3s }
+
+.typing-dots span:nth-child(2) {
+    animation-delay: 0.15s
+}
+
+.typing-dots span:nth-child(3) {
+    animation-delay: 0.3s
+}
+
 @keyframes blink {
-  0% { transform: translateY(0); opacity: 0.3 }
-  50% { transform: translateY(-4px); opacity: 1 }
-  100% { transform: translateY(0); opacity: 0.3 }
+    0% {
+        transform: translateY(0);
+        opacity: 0.3
+    }
+    50% {
+        transform: translateY(-4px);
+        opacity: 1
+    }
+    100% {
+        transform: translateY(0);
+        opacity: 0.3
+    }
 }
+
+/* "Need More Assistance?" Section Styling */
+.need-assistance-section {
+    background-color: #e9f2f5; /* A light, soft background for the section */
+    border-radius: 8px;
+    padding: 15px;
+    margin-top: 20px;
+    margin-bottom: 10px;
+    border: 1px solid #d0e0e8;
+    color: #333;
+    font-size: 14px;
+    line-height: 1.6;
+    align-self: center; /* Center the section if messages are short */
+    max-width: 95%; /* Adjust width to fit within chat window */
+}
+
+.need-assistance-section h4 {
+    color: #0f4c5c;
+    font-size: 16px;
+    margin-top: 0;
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.need-assistance-section p {
+    margin-bottom: 8px;
+}
+
+.need-assistance-section ul {
+    list-style: none; /* Remove default bullet points */
+    padding: 0;
+    margin: 10px 0;
+}
+
+.need-assistance-section li {
+    margin-bottom: 6px;
+    padding-left: 20px; /* Indent list items */
+    position: relative;
+}
+
+.need-assistance-section li::before {
+    content: "•"; /* Custom bullet point */
+    color: #0f4c5c;
+    font-weight: bold;
+    display: inline-block;
+    width: 1em;
+    margin-left: -1em;
+    position: absolute;
+    left: 0;
+}
+
+.need-assistance-section a {
+    color: #0f4c5c;
+    text-decoration: underline;
+    word-break: break-all;
+}
+
+.need-assistance-section a:hover {
+    text-decoration: none;
+    color: #0c3d49;
+}
+
+.support-hours-title {
+    font-weight: bold;
+    margin-top: 15px;
+    margin-bottom: 5px !important;
+}
+
 
 /* Input Area */
 .chatbot-input-area {
-  display: flex;
-  padding: 10px 15px;
-  border-top: 1px solid #e9e9e9; /* Light, subtle border */
-  background-color: #ffffff;
-  align-items: center;
+    display: flex;
+    padding: 10px 15px;
+    border-top: 1px solid #e9e9e9; /* Light, subtle border */
+    background-color: #ffffff;
+    align-items: center;
 }
 
 .chatbot-input-area input {
-  flex-grow: 1;
-  border: 1px solid #dcdcdc; /* Subtle border */
-  border-radius: 22px; /* More rounded input field */
-  padding: 12px 18px; /* More padding */
-  margin-right: 12px; /* More space */
-  font-size: 15px;
-  outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    flex-grow: 1;
+    border: 1px solid #dcdcdc; /* Subtle border */
+    border-radius: 22px; /* More rounded input field */
+    padding: 12px 18px; /* More padding */
+    margin-right: 12px; /* More space */
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .chatbot-input-area input:focus {
@@ -250,27 +336,27 @@
 }
 
 .chatbot-input-area button {
-  background-color: #0f4c5c; /* Dark teal/blue for send button */
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 42px; /* Slightly larger send button */
-  height: 42px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px; /* Larger send icon */
-  cursor: pointer;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Subtle shadow */
-  transition: background-color 0.2s ease, transform 0.2s ease;
+    background-color: #0f4c5c; /* Dark teal/blue for send button */
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 42px; /* Slightly larger send button */
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px; /* Larger send icon */
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Subtle shadow */
+    transition: background-color 0.2s ease, transform 0.2s ease;
 }
 
 .chatbot-input-area .send-button svg {
-  display: block;
-  color: white;
+    display: block;
+    color: white;
 }
 
 .chatbot-input-area button:hover {
-  background-color: #0c3d49; /* Darker teal on hover */
-  transform: scale(1.08);
+    background-color: #0c3d49; /* Darker teal on hover */
+    transform: scale(1.08);
 }

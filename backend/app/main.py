@@ -1,6 +1,9 @@
 # customer_support_agent.py
 import os
 import operator
+import logging
+import sys
+from datetime import datetime
 from typing import Annotated, List, Tuple, Union, Dict, Any, TypedDict
 
 from dotenv import load_dotenv
@@ -23,6 +26,17 @@ from .query_with_llm_json import ProductionRetriever
 
 load_dotenv()
 
+# --- Logging Configuration ---
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler('app_logs.log')
+    ]
+)
+logger = logging.getLogger(__name__)
+
 # --- Configuration ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
@@ -36,10 +50,11 @@ ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS_ENV.split(",") i
 # This ensures database connections are established on startup
 retriever_instance: ProductionRetriever = None
 try:
+    logger.info("Initializing ProductionRetriever...")
     retriever_instance = ProductionRetriever()
-    print("ProductionRetriever initialized successfully.")
+    logger.info("ProductionRetriever initialized successfully.")
 except Exception as e:
-    print(f"ERROR: Failed to initialize ProductionRetriever: {e}")
+    logger.error(f"Failed to initialize ProductionRetriever: {e}", exc_info=True)
     # The application can still start, but the tool calls will return an error
 
 SITEMAP_STRUCTURE = {
@@ -617,11 +632,20 @@ def retrieve_documentation(query: str) -> Dict[str, Any]:
     - 'top_5_vector_results': The top 5 most relevant results from the vector search, after ranking.
     - 'hybrid_ranked_for_display': A combined and ranked list of results suitable for internal display.
     """
+    logger.info(f"retrieve_documentation tool called with query: {query}")
+
     if retriever_instance is None:
+        logger.error("Retriever instance is None, cannot perform retrieval")
         return {"error": "Retriever was not initialized due to an earlier error. Cannot perform retrieval.", "query": query}
-    
-    # The retriever's retrieve method already returns the desired structure
-    return retriever_instance.retrieve(query)
+
+    try:
+        # The retriever's retrieve method already returns the desired structure
+        result = retriever_instance.retrieve(query)
+        logger.info(f"Retrieval successful. Cypher results: {len(result.get('all_cypher_results', []))}, Vector results: {len(result.get('top_5_vector_results', []))}")
+        return result
+    except Exception as e:
+        logger.error(f"Error during retrieval: {e}", exc_info=True)
+        return {"error": f"Retrieval failed: {str(e)}", "query": query}
 
 # Tools the LLM can use
 tools = [retrieve_documentation]
@@ -638,8 +662,10 @@ class GraphState(TypedDict):
 # --- LangGraph Nodes ---
 def call_llm(state: GraphState) -> GraphState:
     """Invokes the LLM to generate a response or call a tool."""
+    logger.info("call_llm node invoked")
     messages = state["messages"]
     sitemap_context = state["sitemap"]
+    logger.debug(f"Processing {len(messages)} messages")
 
     # Construct the system prompt with sitemap context.
     # This prompt is *crucial* for guiding the LLM's behavior and tool-calling decisions.
@@ -769,10 +795,16 @@ def call_llm(state: GraphState) -> GraphState:
     # Using AIMessage for system role is a common pattern for Gemini within LangChain.
     llm_messages = [AIMessage(content=system_instruction, role='system')] + messages
 
-    response = llm_with_tools.invoke(llm_messages)
-    
-    # LangGraph will use operator.add to append this response to the state's messages list.
-    return {"messages": [response]}
+    logger.info("Invoking LLM with tools...")
+    try:
+        response = llm_with_tools.invoke(llm_messages)
+        logger.info(f"LLM response received. Tool calls: {len(response.tool_calls) if hasattr(response, 'tool_calls') and response.tool_calls else 0}")
+
+        # LangGraph will use operator.add to append this response to the state's messages list.
+        return {"messages": [response]}
+    except Exception as e:
+        logger.error(f"Error invoking LLM: {e}", exc_info=True)
+        raise
 
 
 # The ToolNode prebuilt class automatically handles tool execution and adds results to messages.
@@ -837,6 +869,7 @@ async def chat_endpoint(chat_message: ChatMessage) -> Dict[str, str]:
     """
     Handle incoming chat messages and generate a response using the LangGraph agent.
     """
+    logger.info(f"Received chat request: {chat_message.message[:100]}...")
     user_message = HumanMessage(content=chat_message.message)
     
     # For a persistent chat session across multiple /chat calls:
@@ -856,18 +889,19 @@ async def chat_endpoint(chat_message: ChatMessage) -> Dict[str, str]:
     try:
         # Run the graph. LangGraph will manage the `messages` state list internally
         # by appending LLM responses and FunctionMessages from tool calls.
+        logger.info("Invoking LangGraph agent...")
         final_state = app_graph.invoke(initial_state_for_this_turn)
-        
+        logger.info("LangGraph execution completed")
+
         # The last message in the final state should be the agent's ultimate response
         agent_final_response = final_state["messages"][-1]
-        
+
         # Ensure we're getting the content correctly, even if it's a tool call object that ended the graph
         response_content = agent_final_response.content if isinstance(agent_final_response, (AIMessage, HumanMessage)) else str(agent_final_response)
-        
+
+        logger.info(f"Response generated successfully. Length: {len(response_content)} chars")
         return {"response": response_content}
 
     except Exception as e:
-        import traceback
-        traceback.print_exc() # Print full traceback for debugging
-        print(f"Error during chat processing: {e}")
+        logger.error(f"Error during chat processing: {e}", exc_info=True)
         return {"response": "I'm sorry, I encountered an error. Please try again or contact support."}

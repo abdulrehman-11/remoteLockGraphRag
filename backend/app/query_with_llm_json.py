@@ -12,6 +12,8 @@ Features:
 import os
 import re
 import json
+import logging
+import sys
 import warnings
 from dotenv import load_dotenv
 from typing import List, Dict, Any
@@ -19,6 +21,17 @@ from difflib import SequenceMatcher
 
 warnings.filterwarnings('ignore')
 load_dotenv()
+
+# --- Logging Configuration ---
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler('retriever_logs.log')
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # --- Configuration ---
 # NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
@@ -724,16 +737,22 @@ YOUR ANSWER (Cypher query only):"""
 class ProductionRetriever:
     
     def __init__(self):
-        print("\n" + "="*70)
-        print("Production RemoteLock Retriever")
-        print("="*70)
-        
+        logger.info("="*70)
+        logger.info("Production RemoteLock Retriever Initialization")
+        logger.info("="*70)
+
         # Connect to Neo4j
-        print("\n[1/4] Connecting to Neo4j...")
-        self.driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
-        self.driver.verify_connectivity()
-        
+        logger.info("[1/4] Connecting to Neo4j...")
+        try:
+            self.driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+            self.driver.verify_connectivity()
+            logger.info("✓ Neo4j connection established")
+        except Exception as e:
+            logger.error(f"Failed to connect to Neo4j: {e}", exc_info=True)
+            raise
+
         # Initialize LangChain Graph
+        logger.info("[2/4] Initializing LangChain Neo4jGraph...")
         try:
             # Using the recommended Neo4jGraph
             self.graph = Neo4jGraph(
@@ -742,23 +761,27 @@ class ProductionRetriever:
                 password=NEO4J_PASSWORD
             )
             # It's good practice to call refresh_schema
-            self.graph.refresh_schema() 
-            print("      ✓ Connected\n")
+            self.graph.refresh_schema()
+            logger.info("✓ Neo4jGraph initialized and schema refreshed")
         except Exception as e:
-            print(f"      ⚠ Graph init failed: {e}")
+            logger.error(f"Graph initialization failed: {e}", exc_info=True)
             self.graph = None # Set to None if connection fails
-        
+
         # Initialize LLM
-        print("[2/4] Loading Gemini...")
-        self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            temperature=0,
-            google_api_key=GEMINI_API_KEY
-        )
-        print("      ✓ Ready\n")
-        
+        logger.info("[3/4] Loading Gemini LLM...")
+        try:
+            self.llm = ChatGoogleGenerativeAI(
+                model="gemini-2.5-flash",
+                temperature=0,
+                google_api_key=GEMINI_API_KEY
+            )
+            logger.info("✓ Gemini LLM loaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to load Gemini LLM: {e}", exc_info=True)
+            raise
+
         # Create Cypher chain
-        print("[3/4] Creating Cypher chain...")
+        logger.info("[4/4] Creating GraphCypherQAChain...")
         if self.graph:
             try:
                 self.cypher_chain = GraphCypherQAChain.from_llm(
@@ -774,20 +797,26 @@ class ProductionRetriever:
                     top_k=5 # Limit the chain's internal retrieval to 5 for consistency with your request
                 )
                 self.use_chain = True
-                print("      ✓ Chain ready\n")
+                logger.info("✓ GraphCypherQAChain initialized successfully")
             except Exception as e:
                 self.use_chain = False
-                print(f"      ⚠ LangChain GraphCypherQAChain init failed: {e} - Using direct mode\n")
+                logger.warning(f"GraphCypherQAChain initialization failed: {e}. Falling back to direct Cypher mode", exc_info=True)
         else:
             self.use_chain = False
-            print("      ⚠ Graph not initialized, using direct Cypher mode if possible\n")
+            logger.warning("Graph not initialized, using direct Cypher mode")
 
         # Embeddings
-        print("[4/4] Loading embeddings...")
-        self.embedder = SentenceTransformer("all-MiniLM-L6-v2")
-        print("      ✓ Complete\n")
-        
-        print("="*70 + "\n")
+        logger.info("[5/5] Loading embeddings model...")
+        try:
+            self.embedder = SentenceTransformer("all-MiniLM-L6-v2")
+            logger.info("✓ Embeddings model loaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to load embeddings model: {e}", exc_info=True)
+            raise
+
+        logger.info("="*70)
+        logger.info("ProductionRetriever initialization complete")
+        logger.info("="*70)
     
     def close(self):
         if self.driver:
@@ -930,22 +959,23 @@ class ProductionRetriever:
     
     def cypher_search(self, question: str) -> List[Dict]:
         """Primary search via Cypher, with enriched prompt context."""
-        print("\n[CYPHER Search]")
-        
+        logger.info("=== CYPHER Search Started ===")
+        logger.info(f"Query: {question}")
+
         # Generate hints from our sitemap index
         hints = self._find_matching_slugs_and_hierarchy(question)
         slug_hints_str = f"STRONG HINT: Consider these relevant slugs for direct matching: {', '.join(hints['slug_hints'])}\n" if hints['slug_hints'] else ""
         hierarchy_hints_str = f"STRONG HINT: Relevant categories/subcategories might include: {', '.join(hints['hierarchy_hints'])}\n" if hints['hierarchy_hints'] else ""
 
         if hints['slug_hints']:
-            print(f"  → Detected strong slug candidates: {', '.join(hints['slug_hints'])}")
+            logger.info(f"Detected slug candidates: {', '.join(hints['slug_hints'])}")
         if hints['hierarchy_hints']:
-            print(f"  → Detected relevant hierarchy: {', '.join(hints['hierarchy_hints'])}")
+            logger.info(f"Detected hierarchy: {', '.join(hints['hierarchy_hints'])}")
         
         try:
             if self.use_chain: # This path is attempted only if GraphCypherQAChain initialized successfully
-                print("  → Using GraphCypherQAChain...")
-                
+                logger.info("Using GraphCypherQAChain for query generation...")
+
                 # Format the prompt dynamically with current schema and generated hints
                 # The prompt expects 'schema' directly, not a dictionary.
                 enriched_q = {
@@ -955,9 +985,11 @@ class ProductionRetriever:
                     "slug_hints_injection": slug_hints_str,
                     "hierarchy_hints_injection": hierarchy_hints_str
                 }
-                
+
                 # Invoke the chain using the dynamically formatted prompt
+                logger.debug("Invoking chain with enriched query context...")
                 result = self.cypher_chain.invoke(enriched_q)
+                logger.debug("Chain invocation completed")
                 
                 # --- FIX START: Extract generated Cypher query more robustly ---
                 cypher = ""
@@ -979,21 +1011,22 @@ class ProductionRetriever:
                     return [] # Return empty if no query was found
                 # --- FIX END ---
                 
-                print(f"  Generated Cypher:\n{cypher.strip()}\n") # Print full query to debug
-                
+                logger.info(f"Generated Cypher query:\n{cypher.strip()}")
+
                 # Execute the generated Cypher query
+                logger.debug("Executing Cypher query on Neo4j...")
                 with self.driver.session() as session:
                     raw_results = [dict(r) for r in session.run(cypher)]
-                
+
                 if raw_results:
-                    print(f"  ✓ Found {len(raw_results)} results from Cypher.")
+                    logger.info(f"✓ Cypher search found {len(raw_results)} results")
                     return raw_results
                 else:
-                    print("  ⚠ No results from Cypher search.")
+                    logger.warning("No results from Cypher search")
                     return []
             else: # Fallback to direct execution if GraphCypherQAChain failed to init
                 # Direct execution mode (if chain not initialized)
-                print("  → Direct Cypher generation (GraphCypherQAChain not used)...")
+                logger.info("Using direct Cypher generation (fallback mode)...")
                 prompt_template_direct = PromptTemplate(
                     input_variables=["schema", "question", "sitemap_structure", "slug_hints_injection", "hierarchy_hints_injection"],
                     template=CYPHER_GENERATION_PROMPT
@@ -1006,33 +1039,36 @@ class ProductionRetriever:
                     hierarchy_hints_injection=hierarchy_hints_str
                 )
                 
+                logger.debug("Invoking LLM directly for Cypher generation...")
                 response_llm = self.llm.invoke(prompt_formatted)
                 cypher = response_llm.content.strip().replace("```cypher", "").replace("```", "").strip()
-                
-                print(f"  Generated (direct):\n{cypher.strip()}\n")
-                
+
+                logger.info(f"Generated Cypher (direct):\n{cypher.strip()}")
+
+                logger.debug("Executing direct Cypher query...")
                 with self.driver.session() as session:
                     raw_results = [dict(r) for r in session.run(cypher)]
-                
+
                 if raw_results:
-                    print(f"  ✓ Found {len(raw_results)} results from Direct Cypher.")
-                    #print("  → Results:", raw_results)
+                    logger.info(f"✓ Direct Cypher found {len(raw_results)} results")
                     return raw_results
                 else:
-                    print("  ⚠ No results from Direct Cypher search.")
+                    logger.warning("No results from direct Cypher search")
                     return []
-        
+
         except Exception as e:
-            print(f"  ✗ Error in Cypher search: {e}")
+            logger.error(f"Error in Cypher search: {e}", exc_info=True)
             return []
     
     def vector_search(self, question: str) -> List[Dict]:
         """Vector search"""
-        print("\n[VECTOR Search]")
-        print("  → Computing embeddings...")
-        
+        logger.info("=== VECTOR Search Started ===")
+        logger.info(f"Query: {question}")
+        logger.debug("Computing embeddings...")
+
         try:
             emb = self.embedder.encode(question).tolist()
+            logger.debug(f"Embedding computed, dimension: {len(emb)}")
             
             # Increased WHERE sim > 0.3 for slightly stricter similarity
             # Changed LIMIT to 10-15 to ensure enough candidates to pick 5 unique ones
@@ -1053,18 +1089,20 @@ class ProductionRetriever:
             ORDER BY sim DESC LIMIT 15
             """ # Limit increased to 15 to provide more candidates for hybrid selection
             
+            logger.debug("Executing vector similarity query...")
             with self.driver.session() as session:
                 results = [dict(r) for r in session.run(cypher, emb=emb)]
-            
+
             if results:
-                print(f"  ✓ Found {len(results)} similar pages")
+                logger.info(f"✓ Vector search found {len(results)} similar pages")
+                logger.debug(f"Top similarity score: {results[0].get('similarity', 0):.3f}" if results else "N/A")
                 return results
-            
-            print("  ⚠ No similar pages found with vector search.")
+
+            logger.warning("No similar pages found with vector search")
             return []
-        
+
         except Exception as e:
-            print(f"  ✗ Error in vector search: {e}")
+            logger.error(f"Error in vector search: {e}", exc_info=True)
             return []
 
    # def retrieve(self, question: str) -> Dict:
@@ -1166,11 +1204,11 @@ class ProductionRetriever:
       This version returns all Cypher results and the top 5 *ranked* vector results.
       It also maintains the internal hybrid logic for display purposes.
       """
-      
+
       # Internal print statements for debugging/tracking, as per original functionality
-      print("\n" + "="*70)
-      print(f"QUERY: {question}")
-      print("="*70)
+      logger.info("="*70)
+      logger.info(f"RETRIEVE called with QUERY: {question}")
+      logger.info("="*70)
       
       # --- Step 1: Get ALL Cypher results ---
       # The cypher_search function already handles its own internal logging
@@ -1215,6 +1253,9 @@ class ProductionRetriever:
       ranked_for_internal_display = self._rank_results(hybrid_combined_results, question)
 
       # --- Step 4: Return the specific results as requested ---
+      logger.info(f"Retrieval complete. Cypher: {len(all_cypher_results)}, Vector (top 5): {len(top_5_vector_results)}, Hybrid: {len(ranked_for_internal_display)}")
+      logger.info("="*70)
+
       return {
           "all_cypher_results": all_cypher_results,          # All results from Cypher
           "top_5_vector_results": top_5_vector_results,      # Top 5 *ranked* vector results

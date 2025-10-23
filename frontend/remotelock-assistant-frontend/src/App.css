@@ -108,8 +108,8 @@ body {
   transform: translateY(-2px);
 }
 
-/* General Styling for Simplified Support Sections */
-.support-topics-section, .support-actions-section {
+/* --- Styles for 'Need More Assistance' Section --- */
+.need-assistance-section {
   background-color: #ffffff;
   padding: 30px;
   border-radius: 8px;
@@ -117,41 +117,80 @@ body {
   text-align: center;
   width: 100%;
   box-sizing: border-box;
-  margin-top: 0; /* No extra margin, gap handles spacing */
 }
 
-.support-topics-section h2, .support-actions-section h2 {
+.need-assistance-section h2 {
   color: #555;
   font-size: 2em;
   margin-top: 0;
   margin-bottom: 30px;
 }
 
-.simple-grid {
+.assistance-options-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); /* Simpler grid for items */
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 20px;
   margin: 0 auto;
 }
 
-.simple-grid-item {
-  background-color: #f8f8f8; /* Lighter background for topics */
-  color: #0f4c5c; /* Teal text */
+.assistance-option-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background-color: #f8f8f8;
+  color: #0f4c5c;
   padding: 25px;
   border-radius: 8px;
   text-align: center;
-  font-size: 1.1em;
-  font-weight: 600;
-  cursor: pointer;
+  text-decoration: none;
   transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
   box-shadow: 0 3px 10px rgba(0,0,0,0.08);
   border: 1px solid #eee;
+  min-height: 120px;
+  position: relative; /* Needed for pseudo-elements or absolute positioning */
 }
 
-.simple-grid-item:hover {
-  background-color: #e0f2f7; /* Light teal on hover */
+.assistance-option-item:hover {
+  background-color: #e0f2f7;
   transform: translateY(-5px);
   box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+}
+
+.assistance-option-item h3 {
+  color: #0f4c5c;
+  font-size: 1.25em; /* Slightly reduced font size for titles */
+  margin-top: 0;
+  margin-bottom: 10px;
+  line-height: 1.3; /* Ensure consistent line height */
+}
+
+.assistance-option-item p {
+  color: #666;
+  font-size: 0.9em; /* Slightly smaller description text */
+  margin-bottom: 5px;
+  line-height: 1.4;
+  flex-grow: 1; /* Allow description to take available space */
+  display: flex;
+  align-items: center; /* Vertically center description */
+  justify-content: center; /* Horizontally center description */
+}
+
+.assistance-option-item .contact-info {
+  color: #0f4c5c;
+  font-weight: 600;
+  font-size: 0.95em; /* Slightly larger for the "action" text */
+  margin-top: 15px; /* More space above the action text */
+  display: inline-block; /* Allows padding and background */
+  padding: 8px 15px;
+  border: 1px solid #0f4c5c;
+  border-radius: 5px;
+  background-color: transparent;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.assistance-option-item:hover .contact-info {
+  background-color: #0f4c5c;
+  color: white;
 }
 
 /* Media queries for responsiveness */
@@ -173,13 +212,17 @@ body {
     width: 90%;
   }
 
-  .support-topics-section h2, .support-actions-section h2 {
+  .need-assistance-section h2 {
     font-size: 1.8em;
   }
 
-  .simple-grid-item {
+  .assistance-option-item {
     padding: 20px;
-    font-size: 1em;
+    min-height: 110px; /* Adjusted min-height for smaller screens */
+  }
+
+  .assistance-option-item h3 {
+    font-size: 1.15em;
   }
 }
 
@@ -194,7 +237,10 @@ body {
       width: 100%;
       min-width: unset;
   }
-  .simple-grid {
+  .assistance-options-grid {
     grid-template-columns: 1fr; /* Stack items vertically on very small screens */
+  }
+  .assistance-option-item {
+    min-height: auto; /* Allow height to adjust on very small screens */
   }
 }
