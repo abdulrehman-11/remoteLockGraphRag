@@ -23,13 +23,18 @@ warnings.filterwarnings('ignore')
 load_dotenv()
 
 # --- Logging Configuration ---
+# Configure logging with fallback for environments with read-only filesystems (like Render)
+handlers = [logging.StreamHandler(sys.stdout)]
+try:
+    # Try to create file handler in /tmp (writable on Render)
+    handlers.append(logging.FileHandler('/tmp/retriever_logs.log'))
+except Exception as e:
+    print(f"Warning: Could not create retriever log file, using stdout only: {e}")
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('retriever_logs.log')
-    ]
+    handlers=handlers
 )
 logger = logging.getLogger(__name__)
 

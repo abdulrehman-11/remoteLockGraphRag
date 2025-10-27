@@ -27,13 +27,18 @@ from .query_with_llm_json import ProductionRetriever
 load_dotenv()
 
 # --- Logging Configuration ---
+# Configure logging with fallback for environments with read-only filesystems (like Render)
+handlers = [logging.StreamHandler(sys.stdout)]
+try:
+    # Try to create file handler in /tmp (writable on Render)
+    handlers.append(logging.FileHandler('/tmp/app_logs.log'))
+except Exception as e:
+    print(f"Warning: Could not create log file, using stdout only: {e}")
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('app_logs.log')
-    ]
+    handlers=handlers
 )
 logger = logging.getLogger(__name__)
 
@@ -859,6 +864,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/")
+async def root():
+    """Root endpoint for basic health check"""
+    return {"message": "RemoteLock AI Assistant API is running", "status": "ok"}
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring and deployment verification"""
+    return {
+        "status": "healthy",
+        "retriever_initialized": retriever_instance is not None,
+        "gemini_api_configured": GEMINI_API_KEY is not None
+    }
 
 # Model for incoming chat messages
 class ChatMessage(BaseModel):
