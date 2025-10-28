@@ -78,22 +78,12 @@ if not GEMINI_API_KEY:
 ALLOWED_ORIGINS_ENV = os.getenv("ALLOWED_ORIGINS", "")
 ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS_ENV.split(",") if origin.strip()]
 
-# Initialize the retriever instance once when the FastAPI app starts
-# This ensures database connections are established on startup
-print("MAIN.PY: About to initialize ProductionRetriever...", flush=True)
+# Initialize the retriever instance in startup event (AFTER port binds)
+# This prevents timeout during Render deployment
 retriever_instance: ProductionRetriever = None
-try:
-    logger.info("Initializing ProductionRetriever...")
-    print("MAIN.PY: Calling ProductionRetriever()...", flush=True)
-    retriever_instance = ProductionRetriever()
-    print("MAIN.PY: ProductionRetriever() returned", flush=True)
-    logger.info("ProductionRetriever initialized successfully.")
-except Exception as e:
-    print(f"MAIN.PY: ProductionRetriever initialization failed: {e}", flush=True)
-    logger.error(f"Failed to initialize ProductionRetriever: {e}", exc_info=True)
-    # The application can still start, but the tool calls will return an error
+retriever_initialization_error: str = None
 
-print("MAIN.PY: Past retriever initialization", flush=True)
+print("MAIN.PY: Retriever will be initialized after server starts", flush=True)
 
 SITEMAP_STRUCTURE = {
           "site": {
@@ -898,6 +888,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Initialize retriever after server starts (allows port to bind first)
+@app.on_event("startup")
+async def startup_event():
+    """Initialize ProductionRetriever after FastAPI binds to port"""
+    global retriever_instance, retriever_initialization_error
+
+    print("="*70, flush=True)
+    print("STARTUP EVENT: Server is running, initializing ProductionRetriever...", flush=True)
+    print("="*70, flush=True)
+    logger.info("Starting ProductionRetriever initialization...")
+
+    try:
+        retriever_instance = ProductionRetriever()
+        logger.info("✓ ProductionRetriever initialized successfully!")
+        print("STARTUP EVENT: ✓ ProductionRetriever ready!", flush=True)
+    except Exception as e:
+        retriever_initialization_error = str(e)
+        logger.error(f"✗ ProductionRetriever initialization failed: {e}", exc_info=True)
+        print(f"STARTUP EVENT: ✗ Initialization failed: {e}", flush=True)
+        # Don't crash the server - let it run without retriever
+
 @app.get("/")
 async def root():
     """Root endpoint for basic health check"""
@@ -906,9 +917,20 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint for monitoring and deployment verification"""
+    retriever_ready = retriever_instance is not None
+
+    # Return 503 if retriever failed to initialize (not just still initializing)
+    if retriever_initialization_error:
+        return {
+            "status": "degraded",
+            "retriever_status": "failed",
+            "error": retriever_initialization_error,
+            "gemini_api_configured": GEMINI_API_KEY is not None
+        }
+
     return {
-        "status": "healthy",
-        "retriever_initialized": retriever_instance is not None,
+        "status": "healthy" if retriever_ready else "initializing",
+        "retriever_status": "ready" if retriever_ready else "initializing",
         "gemini_api_configured": GEMINI_API_KEY is not None
     }
 
@@ -922,6 +944,14 @@ async def chat_endpoint(chat_message: ChatMessage) -> Dict[str, str]:
     Handle incoming chat messages and generate a response using the LangGraph agent.
     """
     logger.info(f"Received chat request: {chat_message.message[:100]}...")
+
+    # Check if retriever is initialized
+    if retriever_instance is None:
+        if retriever_initialization_error:
+            return {"response": "I'm sorry, the AI assistant is currently unavailable due to an initialization error. Please contact support."}
+        else:
+            return {"response": "The AI assistant is still initializing. Please try again in a few moments."}
+
     user_message = HumanMessage(content=chat_message.message)
     
     # For a persistent chat session across multiple /chat calls:
