@@ -12,8 +12,11 @@ import sys
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_DIR = os.path.join(SCRIPT_DIR, 'model_cache')
 
-# Create cache directory if it doesn't exist
+# Create cache directory and all subdirectories if they don't exist
 os.makedirs(CACHE_DIR, exist_ok=True)
+os.makedirs(os.path.join(CACHE_DIR, 'transformers'), exist_ok=True)
+os.makedirs(os.path.join(CACHE_DIR, 'sentence_transformers'), exist_ok=True)
+os.makedirs(os.path.join(CACHE_DIR, 'huggingface'), exist_ok=True)
 
 # Set environment variables to use persistent cache
 os.environ['TRANSFORMERS_CACHE'] = os.path.join(CACHE_DIR, 'transformers')

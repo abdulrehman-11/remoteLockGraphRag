@@ -86,7 +86,7 @@ except ImportError:
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains import GraphCypherQAChain
 from langchain.prompts import PromptTemplate
-from sentence_transformers import SentenceTransformer
+# SentenceTransformer import moved to lazy loading inside __init__ to avoid module-level hang
 from neo4j import GraphDatabase
 
 # --- Sitemap Loading ---
@@ -836,7 +836,10 @@ class ProductionRetriever:
         print("QUERY_LLM: [5/5] Loading embeddings model...", flush=True)
         logger.info("[5/5] Loading embeddings model...")
         try:
-            print("QUERY_LLM: About to instantiate SentenceTransformer...", flush=True)
+            # Lazy import to avoid module-level hang during startup
+            print("QUERY_LLM: Importing SentenceTransformer (lazy load)...", flush=True)
+            from sentence_transformers import SentenceTransformer
+            print("QUERY_LLM: Import complete, about to instantiate...", flush=True)
             self.embedder = SentenceTransformer("all-MiniLM-L6-v2")
             print("QUERY_LLM: ✓ Embeddings model loaded successfully", flush=True)
             logger.info("✓ Embeddings model loaded successfully")
