@@ -25,7 +25,7 @@ print("MAIN.PY: Cache env vars set", flush=True)
 
 import operator
 import logging
-import sys
+import threading
 from datetime import datetime
 from typing import Annotated, List, Tuple, Union, Dict, Any, TypedDict
 
@@ -78,12 +78,13 @@ if not GEMINI_API_KEY:
 ALLOWED_ORIGINS_ENV = os.getenv("ALLOWED_ORIGINS", "")
 ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS_ENV.split(",") if origin.strip()]
 
-# Initialize the retriever instance in startup event (AFTER port binds)
-# This prevents timeout during Render deployment
+# Lazy-load retriever on first /chat request (not at startup)
+# This prevents timeout and memory issues during Render deployment
 retriever_instance: ProductionRetriever = None
 retriever_initialization_error: str = None
+retriever_lock = threading.Lock()  # Thread-safe initialization
 
-print("MAIN.PY: Retriever will be initialized after server starts", flush=True)
+print("MAIN.PY: Retriever will be initialized on first chat request", flush=True)
 
 SITEMAP_STRUCTURE = {
           "site": {
@@ -888,26 +889,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize retriever after server starts (allows port to bind first)
-@app.on_event("startup")
-async def startup_event():
-    """Initialize ProductionRetriever after FastAPI binds to port"""
+# Lazy initialization function (thread-safe)
+def ensure_retriever_initialized():
+    """Initialize ProductionRetriever on first use (lazy loading with double-check locking)"""
     global retriever_instance, retriever_initialization_error
 
-    print("="*70, flush=True)
-    print("STARTUP EVENT: Server is running, initializing ProductionRetriever...", flush=True)
-    print("="*70, flush=True)
-    logger.info("Starting ProductionRetriever initialization...")
+    # Quick check without lock (optimization)
+    if retriever_instance is not None:
+        return
 
-    try:
-        retriever_instance = ProductionRetriever()
-        logger.info("✓ ProductionRetriever initialized successfully!")
-        print("STARTUP EVENT: ✓ ProductionRetriever ready!", flush=True)
-    except Exception as e:
-        retriever_initialization_error = str(e)
-        logger.error(f"✗ ProductionRetriever initialization failed: {e}", exc_info=True)
-        print(f"STARTUP EVENT: ✗ Initialization failed: {e}", flush=True)
-        # Don't crash the server - let it run without retriever
+    # Acquire lock for initialization
+    with retriever_lock:
+        # Double-check inside lock (another thread might have initialized)
+        if retriever_instance is not None:
+            return
+
+        try:
+            print("="*70, flush=True)
+            print("LAZY INIT: Initializing ProductionRetriever on first request...", flush=True)
+            print("="*70, flush=True)
+            logger.info("First chat request: Initializing ProductionRetriever...")
+
+            retriever_instance = ProductionRetriever()
+
+            logger.info("✓ ProductionRetriever initialized successfully!")
+            print("LAZY INIT: ✓ ProductionRetriever ready!", flush=True)
+        except Exception as e:
+            retriever_initialization_error = str(e)
+            logger.error(f"✗ ProductionRetriever initialization failed: {e}", exc_info=True)
+            print(f"LAZY INIT: ✗ Initialization failed: {e}", flush=True)
+            raise  # Re-raise to let caller handle it
 
 @app.get("/")
 async def root():
@@ -919,18 +930,19 @@ async def health_check():
     """Health check endpoint for monitoring and deployment verification"""
     retriever_ready = retriever_instance is not None
 
-    # Return 503 if retriever failed to initialize (not just still initializing)
     if retriever_initialization_error:
         return {
             "status": "degraded",
             "retriever_status": "failed",
             "error": retriever_initialization_error,
+            "note": "Retriever failed to initialize",
             "gemini_api_configured": GEMINI_API_KEY is not None
         }
 
     return {
-        "status": "healthy" if retriever_ready else "initializing",
-        "retriever_status": "ready" if retriever_ready else "initializing",
+        "status": "healthy",
+        "retriever_status": "ready" if retriever_ready else "not_initialized",
+        "note": "Retriever initializes on first chat request" if not retriever_ready else "Retriever ready",
         "gemini_api_configured": GEMINI_API_KEY is not None
     }
 
@@ -945,12 +957,17 @@ async def chat_endpoint(chat_message: ChatMessage) -> Dict[str, str]:
     """
     logger.info(f"Received chat request: {chat_message.message[:100]}...")
 
-    # Check if retriever is initialized
+    # Lazy-load retriever on first request
     if retriever_instance is None:
         if retriever_initialization_error:
             return {"response": "I'm sorry, the AI assistant is currently unavailable due to an initialization error. Please contact support."}
-        else:
-            return {"response": "The AI assistant is still initializing. Please try again in a few moments."}
+
+        try:
+            # This will block for ~60 seconds on FIRST request only
+            ensure_retriever_initialized()
+        except Exception as e:
+            logger.error(f"Failed to initialize retriever: {e}")
+            return {"response": "Failed to initialize the AI assistant. Please try again or contact support."}
 
     user_message = HumanMessage(content=chat_message.message)
     
