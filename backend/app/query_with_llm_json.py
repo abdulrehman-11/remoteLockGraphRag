@@ -83,10 +83,10 @@ except ImportError:
           "Please install 'langchain-neo4j' for the latest compatibility (pip install langchain-neo4j).")
     from langchain_community.graphs import Neo4jGraph
 
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain.chains import GraphCypherQAChain
 from langchain.prompts import PromptTemplate
-# SentenceTransformer import moved to lazy loading inside __init__ to avoid module-level hang
+# Replaced SentenceTransformer with Gemini API embeddings to reduce memory usage (~300MB saved)
 from neo4j import GraphDatabase
 
 # --- Sitemap Loading ---
@@ -768,7 +768,12 @@ class ProductionRetriever:
         print("QUERY_LLM: [1/4] Connecting to Neo4j...", flush=True)
         logger.info("[1/4] Connecting to Neo4j...")
         try:
-            self.driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+            # Limit connection pool size to reduce memory usage (~10MB savings)
+            self.driver = GraphDatabase.driver(
+                NEO4J_URI,
+                auth=(NEO4J_USER, NEO4J_PASSWORD),
+                max_connection_pool_size=5
+            )
             print("QUERY_LLM: Neo4j driver created, verifying connectivity...", flush=True)
             self.driver.verify_connectivity()
             print("QUERY_LLM: ✓ Neo4j connection established", flush=True)
@@ -832,20 +837,21 @@ class ProductionRetriever:
             self.use_chain = False
             logger.warning("Graph not initialized, using direct Cypher mode")
 
-        # Embeddings
-        print("QUERY_LLM: [5/5] Loading embeddings model...", flush=True)
-        logger.info("[5/5] Loading embeddings model...")
+        # Embeddings - Using Gemini API (zero local memory footprint)
+        print("QUERY_LLM: [5/5] Configuring Gemini embeddings API...", flush=True)
+        logger.info("[5/5] Configuring Gemini embeddings API...")
         try:
-            # Lazy import to avoid module-level hang during startup
-            print("QUERY_LLM: Importing SentenceTransformer (lazy load)...", flush=True)
-            from sentence_transformers import SentenceTransformer
-            print("QUERY_LLM: Import complete, about to instantiate...", flush=True)
-            self.embedder = SentenceTransformer("all-MiniLM-L6-v2")
-            print("QUERY_LLM: ✓ Embeddings model loaded successfully", flush=True)
-            logger.info("✓ Embeddings model loaded successfully")
+            # Use Gemini API for embeddings instead of local SentenceTransformer
+            # This saves ~300MB of memory (PyTorch + model) - critical for Render free tier
+            self.embedder = GoogleGenerativeAIEmbeddings(
+                model="models/text-embedding-004",
+                google_api_key=GEMINI_API_KEY
+            )
+            print("QUERY_LLM: ✓ Gemini embeddings API configured successfully", flush=True)
+            logger.info("✓ Gemini embeddings API configured successfully")
         except Exception as e:
-            print(f"QUERY_LLM: ✗ Failed to load embeddings model: {e}", flush=True)
-            logger.error(f"Failed to load embeddings model: {e}", exc_info=True)
+            print(f"QUERY_LLM: ✗ Failed to configure embeddings API: {e}", flush=True)
+            logger.error(f"Failed to configure embeddings API: {e}", exc_info=True)
             raise
 
         print("QUERY_LLM: ProductionRetriever initialization complete", flush=True)
@@ -1099,11 +1105,12 @@ class ProductionRetriever:
         """Vector search"""
         logger.info("=== VECTOR Search Started ===")
         logger.info(f"Query: {question}")
-        logger.debug("Computing embeddings...")
+        logger.debug("Computing embeddings via Gemini API...")
 
         try:
-            emb = self.embedder.encode(question).tolist()
-            logger.debug(f"Embedding computed, dimension: {len(emb)}")
+            # embed_query() returns a list directly (no need for .tolist())
+            emb = self.embedder.embed_query(question)
+            logger.debug(f"Embedding computed via API, dimension: {len(emb)}")
             
             # Increased WHERE sim > 0.3 for slightly stricter similarity
             # Changed LIMIT to 10-15 to ensure enough candidates to pick 5 unique ones

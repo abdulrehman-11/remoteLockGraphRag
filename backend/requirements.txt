@@ -106,7 +106,7 @@ shapely==2.1.1
 six==1.17.0
 sniffio==1.3.1
 snowballstemmer==2.2.0
-sentence-transformers==5.1.1
+# sentence-transformers==5.1.1  # Removed - replaced with Gemini API embeddings to reduce memory usage
 soupsieve==2.8
 SQLAlchemy==2.0.43
 starlette==0.48.0
