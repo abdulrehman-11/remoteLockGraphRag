@@ -2,10 +2,14 @@
 import os
 
 # Set cache directories for model storage (must be before any model imports)
-# These directories are writable on Render's filesystem
-os.environ.setdefault('TRANSFORMERS_CACHE', '/tmp/transformers_cache')
-os.environ.setdefault('SENTENCE_TRANSFORMERS_HOME', '/tmp/sentence_transformers')
-os.environ.setdefault('HF_HOME', '/tmp/huggingface')
+# Use persistent cache directory in backend/model_cache (included in build artifact)
+_APP_DIR = os.path.dirname(os.path.abspath(__file__))
+_BACKEND_DIR = os.path.dirname(_APP_DIR)
+_CACHE_DIR = os.path.join(_BACKEND_DIR, 'model_cache')
+
+os.environ.setdefault('TRANSFORMERS_CACHE', os.path.join(_CACHE_DIR, 'transformers'))
+os.environ.setdefault('SENTENCE_TRANSFORMERS_HOME', os.path.join(_CACHE_DIR, 'sentence_transformers'))
+os.environ.setdefault('HF_HOME', _CACHE_DIR)
 
 import operator
 import logging

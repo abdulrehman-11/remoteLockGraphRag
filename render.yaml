@@ -8,12 +8,6 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.13
-      - key: TRANSFORMERS_CACHE
-        value: /tmp/transformers_cache
-      - key: SENTENCE_TRANSFORMERS_HOME
-        value: /tmp/sentence_transformers
-      - key: HF_HOME
-        value: /tmp/huggingface
       - key: GEMINI_API_KEY
         sync: false
       - key: NEO4J_URI

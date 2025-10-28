@@ -52,3 +52,6 @@ troubleshooting*.json
 # Temporary files
 backend/requirements_temp.txt
 backend/requirements_utf8.txt
+
+# Model cache (downloaded during build, not committed)
+backend/model_cache/
