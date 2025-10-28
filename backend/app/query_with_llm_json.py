@@ -10,6 +10,13 @@ Features:
 - Improved hierarchical searching in Cypher
 """
 import os
+
+# Set cache directories for model storage (must be before any model imports)
+# These directories are writable on Render's filesystem
+os.environ.setdefault('TRANSFORMERS_CACHE', '/tmp/transformers_cache')
+os.environ.setdefault('SENTENCE_TRANSFORMERS_HOME', '/tmp/sentence_transformers')
+os.environ.setdefault('HF_HOME', '/tmp/huggingface')
+
 import re
 import json
 import logging
