@@ -10,12 +10,18 @@ Features:
 - Improved hierarchical searching in Cypher
 """
 import os
+import sys
+
+print("QUERY_LLM: Module import started", flush=True)
 
 # Set cache directories for model storage (must be before any model imports)
 # Use persistent cache directory in backend/model_cache (included in build artifact)
 _APP_DIR = os.path.dirname(os.path.abspath(__file__))
 _BACKEND_DIR = os.path.dirname(_APP_DIR)
 _CACHE_DIR = os.path.join(_BACKEND_DIR, 'model_cache')
+
+print(f"QUERY_LLM: Cache directory: {_CACHE_DIR}", flush=True)
+print(f"QUERY_LLM: Cache exists: {os.path.exists(_CACHE_DIR)}", flush=True)
 
 os.environ.setdefault('TRANSFORMERS_CACHE', os.path.join(_CACHE_DIR, 'transformers'))
 os.environ.setdefault('SENTENCE_TRANSFORMERS_HOME', os.path.join(_CACHE_DIR, 'sentence_transformers'))
@@ -751,19 +757,24 @@ Question: {question}
 YOUR ANSWER (Cypher query only):"""
 
 class ProductionRetriever:
-    
+
     def __init__(self):
+        print("QUERY_LLM: ProductionRetriever.__init__ started", flush=True)
         logger.info("="*70)
         logger.info("Production RemoteLock Retriever Initialization")
         logger.info("="*70)
 
         # Connect to Neo4j
+        print("QUERY_LLM: [1/4] Connecting to Neo4j...", flush=True)
         logger.info("[1/4] Connecting to Neo4j...")
         try:
             self.driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+            print("QUERY_LLM: Neo4j driver created, verifying connectivity...", flush=True)
             self.driver.verify_connectivity()
+            print("QUERY_LLM: ✓ Neo4j connection established", flush=True)
             logger.info("✓ Neo4j connection established")
         except Exception as e:
+            print(f"QUERY_LLM: ✗ Neo4j connection failed: {e}", flush=True)
             logger.error(f"Failed to connect to Neo4j: {e}", exc_info=True)
             raise
 
@@ -822,14 +833,19 @@ class ProductionRetriever:
             logger.warning("Graph not initialized, using direct Cypher mode")
 
         # Embeddings
+        print("QUERY_LLM: [5/5] Loading embeddings model...", flush=True)
         logger.info("[5/5] Loading embeddings model...")
         try:
+            print("QUERY_LLM: About to instantiate SentenceTransformer...", flush=True)
             self.embedder = SentenceTransformer("all-MiniLM-L6-v2")
+            print("QUERY_LLM: ✓ Embeddings model loaded successfully", flush=True)
             logger.info("✓ Embeddings model loaded successfully")
         except Exception as e:
+            print(f"QUERY_LLM: ✗ Failed to load embeddings model: {e}", flush=True)
             logger.error(f"Failed to load embeddings model: {e}", exc_info=True)
             raise
 
+        print("QUERY_LLM: ProductionRetriever initialization complete", flush=True)
         logger.info("="*70)
         logger.info("ProductionRetriever initialization complete")
         logger.info("="*70)

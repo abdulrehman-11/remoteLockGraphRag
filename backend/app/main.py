@@ -1,5 +1,10 @@
 # customer_support_agent.py
 import os
+import sys
+
+print("="*70, flush=True)
+print("MAIN.PY: Starting import", flush=True)
+print("="*70, flush=True)
 
 # Set cache directories for model storage (must be before any model imports)
 # Use persistent cache directory in backend/model_cache (included in build artifact)
@@ -7,9 +12,16 @@ _APP_DIR = os.path.dirname(os.path.abspath(__file__))
 _BACKEND_DIR = os.path.dirname(_APP_DIR)
 _CACHE_DIR = os.path.join(_BACKEND_DIR, 'model_cache')
 
+print(f"MAIN.PY: Cache directory: {_CACHE_DIR}", flush=True)
+print(f"MAIN.PY: Cache exists: {os.path.exists(_CACHE_DIR)}", flush=True)
+if os.path.exists(_CACHE_DIR):
+    print(f"MAIN.PY: Cache contents: {os.listdir(_CACHE_DIR)}", flush=True)
+
 os.environ.setdefault('TRANSFORMERS_CACHE', os.path.join(_CACHE_DIR, 'transformers'))
 os.environ.setdefault('SENTENCE_TRANSFORMERS_HOME', os.path.join(_CACHE_DIR, 'sentence_transformers'))
 os.environ.setdefault('HF_HOME', _CACHE_DIR)
+
+print("MAIN.PY: Cache env vars set", flush=True)
 
 import operator
 import logging
@@ -30,10 +42,14 @@ from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel, Field
 
+print("MAIN.PY: About to import ProductionRetriever...", flush=True)
+
 # Import your ProductionRetriever and SITEMAP_STRUCTURE from the retriever file
 # Use a package-relative import so this module works when run as 'app.main'
 # (uvicorn imports the module as a package: e.g. `uvicorn app.main:app`).
 from .query_with_llm_json import ProductionRetriever
+
+print("MAIN.PY: ProductionRetriever imported successfully", flush=True)
 
 load_dotenv()
 
@@ -64,14 +80,20 @@ ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS_ENV.split(",") i
 
 # Initialize the retriever instance once when the FastAPI app starts
 # This ensures database connections are established on startup
+print("MAIN.PY: About to initialize ProductionRetriever...", flush=True)
 retriever_instance: ProductionRetriever = None
 try:
     logger.info("Initializing ProductionRetriever...")
+    print("MAIN.PY: Calling ProductionRetriever()...", flush=True)
     retriever_instance = ProductionRetriever()
+    print("MAIN.PY: ProductionRetriever() returned", flush=True)
     logger.info("ProductionRetriever initialized successfully.")
 except Exception as e:
+    print(f"MAIN.PY: ProductionRetriever initialization failed: {e}", flush=True)
     logger.error(f"Failed to initialize ProductionRetriever: {e}", exc_info=True)
     # The application can still start, but the tool calls will return an error
+
+print("MAIN.PY: Past retriever initialization", flush=True)
 
 SITEMAP_STRUCTURE = {
           "site": {

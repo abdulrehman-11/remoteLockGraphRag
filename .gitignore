@@ -53,5 +53,5 @@ troubleshooting*.json
 backend/requirements_temp.txt
 backend/requirements_utf8.txt
 
-# Model cache (downloaded during build, not committed)
-backend/model_cache/
+# Model cache - DO NOT ignore during deployment testing
+# backend/model_cache/
