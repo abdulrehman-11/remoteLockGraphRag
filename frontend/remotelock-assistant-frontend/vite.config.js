@@ -7,4 +7,20 @@ export default defineConfig({
   define: {
     'import.meta.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || 'http://localhost:8000'),
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: undefined,
+      },
+    },
+  },
+  // Add this for debugging process.env
+  optimizeDeps: {
+    exclude: ['process'],
+  },
+  // Log process.env.VITE_API_URL during build
+  // This will appear in Vercel build logs
+  setup(build) {
+    console.log('Vercel Build - process.env.VITE_API_URL:', process.env.VITE_API_URL);
+  },
 })
