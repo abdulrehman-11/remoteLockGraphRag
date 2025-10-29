@@ -1,6 +1,7 @@
 // API configuration
 export const getApiBase = () => {
   const apiUrl = import.meta?.env?.VITE_API_URL;
+  console.log('VITE_API_URL:', apiUrl); // Added for debugging
   return apiUrl || 'http://localhost:8000';
 };
 
