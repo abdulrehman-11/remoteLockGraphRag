@@ -31,9 +31,13 @@ const Chatbot = () => {
     // Send message to backend chat endpoint
     setIsLoading(true);
     try {
-      const API_BASE = (import.meta && import.meta.env && import.meta.env.VITE_API_URL) ? import.meta.env.VITE_API_URL : 'http://localhost:8000';
-      console.log({api: import.meta.env.VITE_API_URL, base: API_BASE});
-      const resp = await fetch(`${API_BASE.replace(/\/$/, '')}/chat/`, {
+      // Use optional chaining and ensure API_BASE is always a string
+      const API_BASE = import.meta?.env?.VITE_API_URL || 'http://localhost:8000';
+      console.log({api: import.meta?.env?.VITE_API_URL, base: API_BASE});
+
+      // Ensure API_BASE is a string before calling replace
+      const apiUrl = typeof API_BASE === 'string' ? API_BASE.replace(/\/$/, '') : 'http://localhost:8000';
+      const resp = await fetch(`${apiUrl}/chat/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: messageToSend }),
@@ -102,16 +106,23 @@ const Chatbot = () => {
 
     // Normalize list markers: convert leading '* ', '- ', '+ ', '• ', or '1.' to a single bullet marker '• '
     const normalized = lines.map((line) => {
+      // Ensure line is a string before processing
+      if (typeof line !== 'string') {
+        console.warn('sanitizeReply: non-string line detected', line);
+        return '';
+      }
+
       // Match common list prefixes
       const m = line.match(/^\s*([*+\-•]|\d+\.)\s+(.*)$/);
-      if (m) return `• ${m[2].trim()}`;
+      if (m && m[2]) return `• ${m[2].trim()}`;
+
       // If a line itself is a sequence of single letters separated by spaces or newlines, join them
       if (/^(?:[A-Za-z](?:[ \t\n\r]+|$)){2,}$/.test(line)) {
         return line.replace(/[\s\n\r]+/g, '');
       }
       // Also remove stray leading asterisks or bullets
       return line.replace(/^\s*[\*•]\s?/, '').trim();
-    }).filter(l => l && !/^\s*[-*]{2,}$/.test(l));
+    }).filter(l => l && typeof l === 'string' && !/^\s*[-*]{2,}$/.test(l));
 
     // If many lines are bullets (start with '• '), keep them as a bullet list separated by newlines
     const bulletCount = normalized.filter(l => l.startsWith('• ')).length;
@@ -123,6 +134,11 @@ const Chatbot = () => {
     const paragraphs = normalized.join('\n').split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
     // Fix pathological cases where characters are spaced out like 'R e m o t e'
     const fixed = paragraphs.map((p) => {
+      // Ensure p is a string
+      if (typeof p !== 'string') {
+        console.warn('sanitizeReply: non-string paragraph detected', p);
+        return '';
+      }
       // If a paragraph has many single-character tokens in a row, join contiguous runs
       const tokens = p.split(/(\s+)/); // keep whitespace tokens
       let out = '';
@@ -171,14 +187,23 @@ const Chatbot = () => {
         return parts; // Skip processing if line is not a string
       }
       line.replace(urlRegex, (match, urlBase, urlPath, offset) => {
+        // Guard against undefined capture groups
+        if (!urlBase || typeof urlBase !== 'string') {
+          console.warn('formatTextWithLinks: urlBase is undefined or not a string', { match, urlBase, urlPath });
+          return match;
+        }
+
         // Add preceding text as a simple text node
         if (offset > lastIndex) {
           parts.push(line.substring(lastIndex, offset));
         }
 
+        // Ensure urlPath is a string (default to empty string if undefined)
+        const safeUrlPath = urlPath && typeof urlPath === 'string' ? urlPath : '';
+
         // Construct the full URL and the display text
-        const fullUrl = urlBase.startsWith('http') ? urlBase + urlPath : `https://${urlBase}${urlPath}`;
-        const displayText = urlBase + urlPath;
+        const fullUrl = urlBase.startsWith('http') ? urlBase + safeUrlPath : `https://${urlBase}${safeUrlPath}`;
+        const displayText = urlBase + safeUrlPath;
 
         // Add the link
         parts.push(
