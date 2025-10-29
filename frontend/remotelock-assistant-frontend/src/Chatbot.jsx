@@ -10,8 +10,9 @@ const Chatbot = () => {
 
   // Effect to scroll to the bottom of the messages display whenever new messages are added
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]); // Also re-scroll when loading state changes
+    // Use 'auto' instead of 'smooth' to prevent race conditions during multi-frame scroll animations
+    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+  }, [messages]); // Only scroll when messages change, not on isLoading
 
   // Toggles the chat window open/closed
   const toggleChat = () => {
@@ -45,10 +46,20 @@ const Chatbot = () => {
 
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
-      console.log('Backend response data:', data); // Add this line
+      console.log('Backend response data:', data);
       const rawReply = data.response || "Sorry, no reply.";
       const botReply = sanitizeReply(rawReply);
-      setMessages((prevMessages) => [...prevMessages, { text: botReply, sender: 'bot' }]);
+
+      // Validate botReply is a valid string before adding to state
+      if (botReply && typeof botReply === 'string' && botReply.trim().length > 0) {
+        setMessages((prevMessages) => [...prevMessages, { text: botReply, sender: 'bot' }]);
+      } else {
+        console.error('Invalid bot reply after sanitization:', botReply);
+        setMessages((prevMessages) => [...prevMessages, {
+          text: "Sorry, I received an invalid response. Please try again.",
+          sender: 'bot'
+        }]);
+      }
     } catch (err) {
       console.error('Chat request failed', err);
       setMessages((prevMessages) => [...prevMessages, { text: "Sorry, I'm having trouble connecting right now.", sender: 'bot' }]);
@@ -173,7 +184,11 @@ const Chatbot = () => {
 
   // Render text into paragraphs and bullet lists, also detect and format links
   const renderMessageText = (text) => {
-    if (!text) return null;
+    // Strong guard to prevent crashes during scroll-triggered re-renders
+    if (!text || typeof text !== 'string') {
+      console.warn('renderMessageText received invalid text:', text);
+      return null;
+    }
 
     // Regex to find URLs (http/https, optional www, followed by valid URL characters)
     const urlRegex = /(https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:\/\/[a-zA-Z0-9]+\.[^\s]{2,}|[a-zA-Z0-9]+\.[^\s]{2,})([\w\/\?#&=.-]*)/gi;
@@ -291,11 +306,22 @@ const Chatbot = () => {
                 Hi there! I'm your RemoteLock Support Assistant. How can I help you today?
               </div>
             )}
-            {messages.map((msg, index) => (
-              <div key={index} className={`message ${msg.sender}`}>
-                {renderMessageText(msg.text)}
-              </div>
-            ))}
+            {messages.map((msg, index) => {
+              // Validate message has text before rendering to prevent race condition crashes
+              if (!msg || !msg.text || typeof msg.text !== 'string') {
+                console.warn('Invalid message detected during render:', msg);
+                return null;
+              }
+
+              return (
+                <div
+                  key={`msg-${msg.sender}-${index}-${msg.text.substring(0, 20)}`}
+                  className={`message ${msg.sender}`}
+                >
+                  {renderMessageText(msg.text)}
+                </div>
+              );
+            })}
             {/* Loading indicator moved to the bottom */}
             {isLoading && (
               <div className="typing-indicator">
