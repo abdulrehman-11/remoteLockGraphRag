@@ -32,6 +32,7 @@ const Chatbot = () => {
     setIsLoading(true);
     try {
       const API_BASE = (import.meta && import.meta.env && import.meta.env.VITE_API_URL) ? import.meta.env.VITE_API_URL : 'http://localhost:8000';
+      console.log({api: import.meta.env.VITE_API_URL, base: API_BASE});
       const resp = await fetch(`${API_BASE.replace(/\/$/, '')}/chat/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -164,6 +165,10 @@ const Chatbot = () => {
       const parts = [];
       let lastIndex = 0;
 
+      if (typeof line !== 'string') {
+        console.error('formatTextWithLinks received non-string line:', line);
+        return parts; // Skip processing if line is not a string
+      }
       line.replace(urlRegex, (match, urlBase, urlPath, offset) => {
         // Add preceding text as a simple text node
         if (offset > lastIndex) {
