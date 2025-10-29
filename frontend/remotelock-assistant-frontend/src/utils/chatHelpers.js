@@ -48,7 +48,7 @@ export const sanitizeReply = (text) => {
 
   // If many lines are bullets, keep them as a bullet list
   // Preserve all newlines and let the rendering component handle paragraph breaks
-  return normalized.join('\n');
+  return normalized.join('\n') || '';
 };
 
 // Local storage helpers for conversation history

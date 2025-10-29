@@ -104,7 +104,7 @@ const ChatMessage = ({ message, sender, sources = [], timestamp }) => {
       return parts;
     };
 
-    const paragraphs = text
+    const paragraphs = (text || '')
       .replace(/\r/g, '')
       .split(/\n{2,}/) // Split by double newlines for paragraphs
       .map((p) => p.trim())

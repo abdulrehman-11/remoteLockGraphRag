@@ -1143,7 +1143,11 @@ async def chat_endpoint(chat_message: ChatMessage) -> Dict[str, str]:
         agent_final_response = final_state["messages"][-1]
 
         # Ensure we're getting the content correctly, even if it's a tool call object that ended the graph
-        response_content = agent_final_response.content if isinstance(agent_final_response, (AIMessage, HumanMessage)) else str(agent_final_response)
+        response_content = (
+            agent_final_response.content
+            if isinstance(agent_final_response, (AIMessage, HumanMessage)) and agent_final_response.content
+            else str(agent_final_response) if agent_final_response else "I couldn't generate a response."
+        )
 
         logger.info(f"Response generated successfully. Length: {len(response_content)} chars")
         return {"response": response_content}

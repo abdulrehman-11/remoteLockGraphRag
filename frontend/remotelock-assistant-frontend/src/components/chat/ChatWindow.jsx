@@ -73,7 +73,7 @@ const ChatWindow = ({ isOpen, onClose, onMinimize, initialMessage = null }) => {
 
       const data = await response.json();
       const rawReply = data.response || 'Sorry, no reply.';
-      const botReply = sanitizeReply(rawReply);
+      const botReply = sanitizeReply(rawReply) || "I'm sorry, I couldn't generate a response.";
 
       const botMessage = {
         text: botReply,

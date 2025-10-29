@@ -41,6 +41,7 @@ const Chatbot = () => {
 
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
+      console.log('Backend response data:', data); // Add this line
       const rawReply = data.response || "Sorry, no reply.";
       const botReply = sanitizeReply(rawReply);
       setMessages((prevMessages) => [...prevMessages, { text: botReply, sender: 'bot' }]);
