@@ -776,6 +776,17 @@ def call_llm(state: GraphState) -> GraphState:
     "that would be found in a support article, installation guide, troubleshooting step, or product information. "
     "Examples of when to use the tool: 'How do I install...', 'Troubleshoot my lock...', 'What is a 500 series...', "
     "'Information about the ACS integration...', 'Tell me about the Kwikset Halo...', 'Where can I find user manuals?'.\n\n"
+    "IMPORTANT BEHAVIORAL RULES - When to Use vs. Avoid Using the Tool:\n"
+    "- **GENERAL/CATEGORY Requests** (e.g., 'Troubleshooting', 'I need help with troubleshooting', 'Tell me about integrations', "
+    "  'Help with billing', or any popular topic button click): **DO NOT call the retrieve_documentation tool**. "
+    "  Instead, list 5-8 relevant subtopics from the provided Sitemap Structure that fall under that category. "
+    "  Format your response as a brief greeting followed by a numbered list of subtopics, then ask: 'Which one should we focus on?'. "
+    "  Keep this response concise and focused on navigation.\n"
+    "- **SPECIFIC/ACTIONABLE Questions** (e.g., 'How do I reset a Kwikset Halo lock?', 'Why is my lock flashing red?', "
+    "  'What does pending wakeup mean?'): **Call the retrieve_documentation tool ONCE**. "
+    "  Format your response with: (1) A one-sentence summary, (2) Numbered steps if applicable, (3) References section with titles and URLs from retrieved content. "
+    "  Be direct and actionable.\n"
+    "- If a user selects a subtopic from your list or clarifies their intent, treat the follow-up as a SPECIFIC question and retrieve.\n\n"
     "When you receive a response from the `retrieve_documentation` tool, follow these steps to reason and generate your output:\n"
     "1.  **Thoroughly Review All Retrieved Content:** Examine both `all_cypher_results` and `top_5_vector_results`. "
     "    Read through the full content of the retrieved documents, not just their titles or snippets, to understand the context fully. "
@@ -945,6 +956,142 @@ async def health_check():
         "note": "Retriever initializes on first chat request" if not retriever_ready else "Retriever ready",
         "gemini_api_configured": GEMINI_API_KEY is not None
     }
+
+@app.get("/sitemap/")
+async def get_sitemap():
+    """Return the sitemap structure for frontend category navigation"""
+    # Extract just the categories from SITEMAP_STRUCTURE
+    # Convert the list format to a dict format that's easier for the frontend
+    sitemap_dict = {}
+    for category in SITEMAP_STRUCTURE.get("categories", []):
+        category_name = category.get("name")
+        if category_name:
+            sitemap_dict[category_name] = {
+                "url": category.get("url", ""),
+                "subcategories": category.get("subcategories", {}),
+                "pages": category.get("pages", [])
+            }
+    return sitemap_dict
+
+# Simple in-memory cache for search and article results
+search_cache = {}
+articles_cache = {}
+
+@app.get("/search/suggestions/")
+async def search_suggestions(q: str):
+    """
+    Return article suggestions using simple Cypher keyword search (fast, no AI).
+    """
+    logger.info(f"Search suggestions request: {q}")
+
+    # Check cache
+    if q in search_cache:
+        logger.info(f"Returning cached search results for: {q}")
+        return search_cache[q]
+
+    # Ensure retriever is initialized (need graph connection)
+    if retriever_instance is None:
+        try:
+            ensure_retriever_initialized()
+        except Exception as e:
+            logger.error(f"Failed to initialize retriever: {e}")
+            return {"query": q, "articles": [], "error": "Database not available"}
+
+    try:
+        # Simple Cypher query: match by title or slug keywords
+        cypher = """
+        MATCH (p:Page)
+        WHERE toLower(p.title) CONTAINS toLower($query)
+           OR toLower(p.slug) CONTAINS toLower($query)
+        RETURN DISTINCT p.title as title, p.url as url, p.slug as slug
+        ORDER BY p.title
+        LIMIT 20
+        """
+
+        # Use graph.query() method
+        results = retriever_instance.graph.query(cypher, params={"query": q})
+
+        articles = []
+        for record in results:
+            title = record.get('title') or record.get('slug', 'Untitled')
+            articles.append({
+                'title': title,
+                'url': record['url'],
+                'summary': f"Article about {title.lower()}"
+            })
+
+        response = {"query": q, "articles": articles}
+
+        # Cache the result (limit cache size to 50 items)
+        if len(search_cache) >= 50:
+            search_cache.pop(next(iter(search_cache)))
+        search_cache[q] = response
+
+        logger.info(f"Found {len(articles)} articles for query: {q}")
+        return response
+
+    except Exception as e:
+        logger.error(f"Search error: {e}", exc_info=True)
+        return {"query": q, "articles": [], "error": str(e)}
+
+@app.get("/articles/")
+async def get_articles(category: str):
+    """
+    Return all articles under a specific category using simple Cypher (fast, no AI).
+    """
+    logger.info(f"Articles request for category: {category}")
+
+    # Check cache
+    if category in articles_cache:
+        logger.info(f"Returning cached articles for: {category}")
+        return articles_cache[category]
+
+    # Ensure retriever is initialized (to access Neo4j connection)
+    if retriever_instance is None:
+        try:
+            ensure_retriever_initialized()
+        except Exception as e:
+            logger.error(f"Failed to initialize retriever: {e}")
+            return {"category": category, "articles": [], "error": "Database not available"}
+
+    try:
+        # Simple Cypher query: get pages under category
+        # Using correct relationship types: BELONGS_TO_CATEGORY, BELONGS_TO_SUBCATEGORY, PART_OF_CATEGORY
+        cypher = """
+        MATCH (p:Page)
+        WHERE (p)-[:BELONGS_TO_CATEGORY]->(:Category {name: $category_name})
+           OR (p)-[:BELONGS_TO_SUBCATEGORY]->(:Subcategory)-[:PART_OF_CATEGORY]->(:Category {name: $category_name})
+        RETURN DISTINCT
+          COALESCE(p.title, p.slug, 'Untitled') as title,
+          p.url as url,
+          p.slug as slug
+        ORDER BY title
+        LIMIT 50
+        """
+
+        # Use graph.query() method
+        results = retriever_instance.graph.query(cypher, params={"category_name": category})
+
+        articles = []
+        for record in results:
+            title = record.get('title') or record.get('slug', 'Untitled')
+            articles.append({
+                'title': title,
+                'url': record['url'],
+                'summary': f"Learn about {title.lower()}"
+            })
+
+        response = {"category": category, "articles": articles}
+
+        # Cache the result
+        articles_cache[category] = response
+
+        logger.info(f"Found {len(articles)} articles for category: {category}")
+        return response
+
+    except Exception as e:
+        logger.error(f"Articles error: {e}", exc_info=True)
+        return {"category": category, "articles": [], "error": str(e)}
 
 # Model for incoming chat messages
 class ChatMessage(BaseModel):

@@ -158,23 +158,26 @@ const Chatbot = () => {
     if (!text) return null;
 
     // Regex to find URLs (http/https, optional www, followed by valid URL characters)
-    const urlRegex = /(https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:\/\/[a-zA-Z0-9]+\.[^\s]{2,}|[a-zA-Z0-9]+\.[^\s]{2,})/gi;
+    const urlRegex = /(https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:\/\/[a-zA-Z0-9]+\.[^\s]{2,}|[a-zA-Z0-9]+\.[^\s]{2,})([\w\/\?#&=.-]*)/gi;
 
     const formatTextWithLinks = (line) => {
       const parts = [];
       let lastIndex = 0;
 
-      line.replace(urlRegex, (match, url, offset) => {
+      line.replace(urlRegex, (match, urlBase, urlPath, offset) => {
         // Add preceding text as a simple text node
         if (offset > lastIndex) {
           parts.push(line.substring(lastIndex, offset));
         }
 
+        // Construct the full URL and the display text
+        const fullUrl = urlBase.startsWith('http') ? urlBase + urlPath : `https://${urlBase}${urlPath}`;
+        const displayText = urlBase + urlPath;
+
         // Add the link
-        const fullUrl = url.startsWith('http') ? url : `https://${url}`;
         parts.push(
           <a key={offset} href={fullUrl} target="_blank" rel="noopener noreferrer">
-            {url}
+            {displayText}
           </a>
         );
         lastIndex = offset + match.length;
@@ -191,26 +194,32 @@ const Chatbot = () => {
 
     const paragraphs = text
       .replace(/\r/g, '')
-      .split(/\n{2,}/) // paragraph breaks
+      .split(/\n{2,}/) // Split by double newlines for paragraphs
       .map(p => p.trim())
       .filter(Boolean);
 
     return paragraphs.map((para, idx) => {
       const lines = para.split(/\n/).map(l => l.trim()).filter(Boolean);
-      const bulletLines = lines.filter(l => /^•\s+/.test(l));
-      const isMostlyBullets = bulletLines.length >= Math.max(2, Math.ceil(lines.length * 0.6));
+      const listItems = [];
+      let currentList = [];
 
-      if (isMostlyBullets) {
-        return (
-          <ul key={idx}>
-            {lines
-              .filter(l => /^•\s+/.test(l))
-              .map((l, i) => <li key={i}>{formatTextWithLinks(l.replace(/^•\s*/, ''))}</li>)}
-          </ul>
-        );
+      lines.forEach((line, lineIdx) => {
+        if (line.startsWith('• ')) {
+          currentList.push(<li key={lineIdx}>{formatTextWithLinks(line.substring(2))}</li>);
+        } else {
+          if (currentList.length > 0) {
+            listItems.push(<ul key={`ul-${idx}-${lineIdx}`}>{currentList}</ul>);
+            currentList = [];
+          }
+          listItems.push(<p key={`p-${idx}-${lineIdx}`}>{formatTextWithLinks(line)}</p>);
+        }
+      });
+
+      if (currentList.length > 0) {
+        listItems.push(<ul key={`ul-final-${idx}`}>{currentList}</ul>);
       }
-      // For regular paragraphs, format links and ensure proper text rendering
-      return <p key={idx}>{formatTextWithLinks(para.replace(/^•\s*/g, ''))}</p>;
+
+      return <div key={idx}>{listItems}</div>;
     });
   };
 

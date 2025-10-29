@@ -183,7 +183,10 @@
     color: #0f4c5c; /* Use your brand color for links */
     text-decoration: underline;
     cursor: pointer;
-    word-break: break-all; /* Allow links to break if they are very long */
+    display: inline-block; /* Treat link as a block for width and wrapping */
+    max-width: 100%; /* Ensure it doesn't exceed parent width */
+    overflow-wrap: break-word; /* Break long words */
+    word-break: break-word; /* For older browsers and more aggressive breaking */
 }
 
 .message a:hover {
