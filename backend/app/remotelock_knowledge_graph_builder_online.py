@@ -69,18 +69,19 @@ class KnowledgeGraphBuilder:
             session.run("CREATE INDEX category_name_idx IF NOT EXISTS FOR (c:Category) ON (c.name)")
             
             # Create vector index for semantic search (Neo4j 5.11+)
+            # Updated to 768 dimensions for Gemini API embeddings (text-embedding-004)
             try:
                 session.run("""
                     CREATE VECTOR INDEX page_embeddings IF NOT EXISTS
                     FOR (p:Page) ON (p.embedding)
                     OPTIONS {
                         indexConfig: {
-                            `vector.dimensions`: 384,
+                            `vector.dimensions`: 768,
                             `vector.similarity_function`: 'cosine'
                         }
                     }
                 """)
-                print("Vector index created successfully")
+                print("Vector index created successfully (768 dimensions)")
             except Exception as e:
                 print(f"Vector index creation skipped: {e}") # This often fails if version is too old or security issue
             
