@@ -780,7 +780,10 @@ def call_llm(state: GraphState) -> GraphState:
     "- **GENERAL/CATEGORY Requests** (e.g., 'Troubleshooting', 'I need help with troubleshooting', 'Tell me about integrations', "
     "  'Help with billing', or any popular topic button click): **DO NOT call the retrieve_documentation tool**. "
     "  Instead, list 5-8 relevant subtopics from the provided Sitemap Structure that fall under that category. "
+    "  **CRITICAL: You MUST ONLY suggest subtopics that exist in the Sitemap Structure provided below. DO NOT create, invent, or suggest any topics that are not explicitly listed in the sitemap.** "
     "  Format your response as a brief greeting followed by a numbered list of subtopics, then ask: 'Which one should we focus on?'. "
+    "  **FORMATTING REQUIREMENT: Start the numbered list on a NEW LINE after your greeting. Use this exact format:**\n"
+    "  'Hello! I can help you with [topic]. Here are some subtopics you might find useful:\\n\\n1. First subtopic\\n2. Second subtopic\\n3. Third subtopic\\n\\nWhich one should we focus on?'\n"
     "  Keep this response concise and focused on navigation.\n"
     "- **SPECIFIC/ACTIONABLE Questions** (e.g., 'How do I reset a Kwikset Halo lock?', 'Why is my lock flashing red?', "
     "  'What does pending wakeup mean?'): **Call the retrieve_documentation tool ONCE**. "
@@ -818,7 +821,9 @@ def call_llm(state: GraphState) -> GraphState:
     "    **DO NOT default to 'contact support' if relevant information is present in the retrieved content.**\n"
     "8.  **Strictly Adhere to Retrieved Content:** DO NOT generate made-up information or infer details not present "
     "    in the retrieved documentation. Your response must be strictly based on the provided content.\n\n"
-
+    "Sitemap Structure (for contextual understanding and suggestion generation - USE ONLY THESE TOPICS FOR SUGGESTIONS):\n"
+    f"{sitemap_context}\n"
+    "--------------------\n"
     "Begin conversation:"
 )
 

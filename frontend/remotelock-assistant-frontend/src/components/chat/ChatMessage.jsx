@@ -63,12 +63,13 @@ const ChatMessage = ({ message, sender, sources = [], timestamp }) => {
           displayText = textOrUrl; // The text inside the brackets
           displayUrl = url; // The URL inside the parentheses
         } else { // type === 'raw'
-          displayText = textOrUrl; // The raw URL itself
-          displayUrl = textOrUrl; // The raw URL itself
+          // For raw URLs, either match[1] (angle bracket) or match[2] (plain URL) will be defined
+          displayUrl = textOrUrl || url; // Use whichever capturing group matched
+          displayText = displayUrl; // The raw URL itself
         }
 
         // Remove trailing punctuation from raw URLs if it's not part of the URL
-        if (type === 'raw') {
+        if (type === 'raw' && displayUrl) {
           displayUrl = displayUrl.replace(/\)+$/, '');
           if (displayUrl.endsWith('.') || displayUrl.endsWith(',') || displayUrl.endsWith(';')) {
             displayUrl = displayUrl.substring(0, displayUrl.length - 1);
@@ -76,23 +77,26 @@ const ChatMessage = ({ message, sender, sources = [], timestamp }) => {
           displayText = displayUrl; // Update display text if URL was cleaned
         }
 
-        const fullLink = displayUrl.startsWith('http') ? displayUrl : `https://${displayUrl}`;
+        // Only create link if we have a valid URL
+        if (displayUrl) {
+          const fullLink = displayUrl.startsWith('http') ? displayUrl : `https://${displayUrl}`;
 
-        parts.push(
-          <a
-            key={startIndex}
-            href={fullLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-remotelock-500 hover:text-remotelock-600 underline"
-          >
-            {displayText}
-          </a>
-        );
-        // Add a line break after each link for better formatting if there are multiple links
-        // This is a stylistic choice, can be removed if not desired.
-        // For now, let's keep it to ensure links are on separate lines as requested.
-        parts.push(<br key={`br-${startIndex}`} />);
+          parts.push(
+            <a
+              key={startIndex}
+              href={fullLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-remotelock-500 hover:text-remotelock-600 underline"
+            >
+              {displayText}
+            </a>
+          );
+          // Add a line break after each link for better formatting if there are multiple links
+          // This is a stylistic choice, can be removed if not desired.
+          // For now, let's keep it to ensure links are on separate lines as requested.
+          parts.push(<br key={`br-${startIndex}`} />);
+        }
 
         lastIndex = endIndex;
       });
@@ -140,7 +144,7 @@ const ChatMessage = ({ message, sender, sources = [], timestamp }) => {
           }
           listType = newItemType;
 
-          const content = trimmedLine.replace(/^[*-•]|\d+\./, '').trim();
+          const content = trimmedLine.replace(/^([*-•]|\d+\.)\s*/, '').trim();
           currentList.push(
             <li key={lineIdx} className="text-gray-700">
               {formatTextWithLinks(content)}

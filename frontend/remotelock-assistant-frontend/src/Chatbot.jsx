@@ -92,94 +92,14 @@ const Chatbot = () => {
   // Sanitize and format replies from the LLM/backend
   const sanitizeReply = (text) => {
     if (!text) return '';
-    // Remove common control chars and excessive asterisks/markdown artifacts
-    let s = text.replace(/\r/g, '')
-                .replace(/\*{2,}/g, '')        // remove repeated asterisks
-                .replace(/[_~`]{1,}/g, '')      // remove simple markdown markers
-                .trim();
 
-    // Remove zero-width and odd invisible characters, collapse multiple whitespace
-    s = s.replace(/[\u200B\u200C\u200D\uFEFF]/g, '');
-    s = s.replace(/\s{2,}/g, ' ');
+    // Minimal cleanup - just remove problematic characters while preserving all formatting
+    const cleaned = text
+      .replace(/\r/g, '')  // Remove carriage returns
+      .replace(/[\u200B\u200C\u200D\uFEFF]/g, '')  // Remove zero-width characters
+      .trim();
 
-    // Collapse weird inter-letter spacing like "R e m o t e" -> "Remote"
-    // and collapse newline-separated single letters like:
-    // R\n e\n m\n o\n t\n e  -> Remote
-    // We'll replace runs of single-letter tokens separated by spaces/newlines with joined words.
-    s = s.replace(/(?:\b(?:[A-Za-z](?:[ \t\n\r]+|$)){3,})/g, (match) => {
-      // remove whitespace between letters
-      const lettersOnly = match.replace(/[^A-Za-z\n\r ]+/g, '').replace(/[\n\r\s]+/g, '');
-      return lettersOnly;
-    });
-
-    // Split into lines and trim each line
-    let lines = s.split('\n').map(l => l.trim()).filter(Boolean);
-
-    // Normalize list markers: convert leading '* ', '- ', '+ ', '• ', or '1.' to a single bullet marker '• '
-    const normalized = lines.map((line) => {
-      // Ensure line is a string before processing
-      if (typeof line !== 'string') {
-        console.warn('sanitizeReply: non-string line detected', line);
-        return '';
-      }
-
-      // Match common list prefixes
-      const m = line.match(/^\s*([*+\-•]|\d+\.)\s+(.*)$/);
-      if (m && m[2]) return `• ${m[2].trim()}`;
-
-      // If a line itself is a sequence of single letters separated by spaces or newlines, join them
-      if (/^(?:[A-Za-z](?:[ \t\n\r]+|$)){2,}$/.test(line)) {
-        return line.replace(/[\s\n\r]+/g, '');
-      }
-      // Also remove stray leading asterisks or bullets
-      return line.replace(/^\s*[\*•]\s?/, '').trim();
-    }).filter(l => l && typeof l === 'string' && !/^\s*[-*]{2,}$/.test(l));
-
-    // If many lines are bullets (start with '• '), keep them as a bullet list separated by newlines
-    const bulletCount = normalized.filter(l => l.startsWith('• ')).length;
-    if (bulletCount >= 2) {
-      return normalized.join('\n');
-    }
-
-    // Otherwise collapse multiple blank lines into single paragraph breaks
-    const paragraphs = normalized.join('\n').split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
-    // Fix pathological cases where characters are spaced out like 'R e m o t e'
-    const fixed = paragraphs.map((p) => {
-      // Ensure p is a string
-      if (typeof p !== 'string') {
-        console.warn('sanitizeReply: non-string paragraph detected', p);
-        return '';
-      }
-      // If a paragraph has many single-character tokens in a row, join contiguous runs
-      const tokens = p.split(/(\s+)/); // keep whitespace tokens
-      let out = '';
-      let run = [];
-      const flushRun = () => {
-        if (run.length === 0) return;
-        // decide if we should join run tokens
-        const runTokens = run.join('').trim().split(/\s+/).filter(Boolean);
-        const singleCount = runTokens.filter(t => t.length === 1).length;
-        if (runTokens.length > 3 && singleCount / runTokens.length > 0.5) {
-          out += runTokens.join('');
-        } else {
-          out += run.join('');
-        }
-        run = [];
-      };
-      for (let tok of tokens) {
-        if (/^\s+$/.test(tok)) {
-          run.push(tok);
-        } else if (tok.length === 1 && /[A-Za-z0-9]/.test(tok)) {
-          run.push(tok + ' ');
-        } else {
-          flushRun();
-          out += tok;
-        }
-      }
-      flushRun();
-      return out.trim();
-    });
-    return fixed.join('\n\n');
+    return cleaned;
   };
 
   // Render text into paragraphs and bullet lists, also detect and format links
@@ -248,21 +168,57 @@ const Chatbot = () => {
       const lines = para.split(/\n/).map(l => l.trim()).filter(Boolean);
       const listItems = [];
       let currentList = [];
+      let listType = null; // 'ul' or 'ol'
 
       lines.forEach((line, lineIdx) => {
-        if (line.startsWith('• ')) {
-          currentList.push(<li key={lineIdx}>{formatTextWithLinks(line.substring(2))}</li>);
+        const isUnorderedListItem = /^[*\-•]\s+/.test(line);
+        const isOrderedListItem = /^\d+\.\s+/.test(line);
+
+        if (isUnorderedListItem || isOrderedListItem) {
+          const newItemType = isOrderedListItem ? 'ol' : 'ul';
+          if (currentList.length > 0 && listType !== newItemType) {
+            // Close previous list if type changes
+            listItems.push(
+              listType === 'ol' ? (
+                <ol key={`ol-${idx}-${lineIdx}`}>{currentList}</ol>
+              ) : (
+                <ul key={`ul-${idx}-${lineIdx}`}>{currentList}</ul>
+              )
+            );
+            currentList = [];
+          }
+          listType = newItemType;
+
+          const content = line.replace(/^([*\-•]|\d+\.)\s*/, '').trim();
+          currentList.push(
+            <li key={lineIdx}>{formatTextWithLinks(content)}</li>
+          );
         } else {
           if (currentList.length > 0) {
-            listItems.push(<ul key={`ul-${idx}-${lineIdx}`}>{currentList}</ul>);
+            // Close any open list
+            listItems.push(
+              listType === 'ol' ? (
+                <ol key={`ol-${idx}-${lineIdx}`}>{currentList}</ol>
+              ) : (
+                <ul key={`ul-${idx}-${lineIdx}`}>{currentList}</ul>
+              )
+            );
             currentList = [];
+            listType = null;
           }
           listItems.push(<p key={`p-${idx}-${lineIdx}`}>{formatTextWithLinks(line)}</p>);
         }
       });
 
+      // Add any remaining open list
       if (currentList.length > 0) {
-        listItems.push(<ul key={`ul-final-${idx}`}>{currentList}</ul>);
+        listItems.push(
+          listType === 'ol' ? (
+            <ol key={`ol-final-${idx}`}>{currentList}</ol>
+          ) : (
+            <ul key={`ul-final-${idx}`}>{currentList}</ul>
+          )
+        );
       }
 
       return <div key={idx}>{listItems}</div>;
