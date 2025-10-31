@@ -31,6 +31,7 @@ import re
 import json
 import logging
 import sys
+import time
 import warnings
 from dotenv import load_dotenv
 from typing import List, Dict, Any
@@ -1000,11 +1001,15 @@ class ProductionRetriever:
     
     def cypher_search(self, question: str) -> List[Dict]:
         """Primary search via Cypher, with enriched prompt context."""
+        timing_cypher_total_start = time.perf_counter()
         logger.info("=== CYPHER Search Started ===")
         logger.info(f"Query: {question}")
 
         # Generate hints from our sitemap index
+        timing_hints_start = time.perf_counter()
         hints = self._find_matching_slugs_and_hierarchy(question)
+        timing_hints_end = time.perf_counter()
+        logger.info(f"⏱️  Hint generation took: {timing_hints_end - timing_hints_start:.3f}s")
         slug_hints_str = f"STRONG HINT: Consider these relevant slugs for direct matching: {', '.join(hints['slug_hints'])}\n" if hints['slug_hints'] else ""
         hierarchy_hints_str = f"STRONG HINT: Relevant categories/subcategories might include: {', '.join(hints['hierarchy_hints'])}\n" if hints['hierarchy_hints'] else ""
 
@@ -1029,7 +1034,10 @@ class ProductionRetriever:
 
                 # Invoke the chain using the dynamically formatted prompt
                 logger.debug("Invoking chain with enriched query context...")
+                timing_llm_cypher_start = time.perf_counter()
                 result = self.cypher_chain.invoke(enriched_q)
+                timing_llm_cypher_end = time.perf_counter()
+                logger.info(f"⏱️  LLM Cypher generation took: {timing_llm_cypher_end - timing_llm_cypher_start:.2f}s")
                 logger.debug("Chain invocation completed")
                 
                 # --- FIX START: Extract generated Cypher query more robustly ---
@@ -1056,8 +1064,14 @@ class ProductionRetriever:
 
                 # Execute the generated Cypher query
                 logger.debug("Executing Cypher query on Neo4j...")
+                timing_neo4j_cypher_start = time.perf_counter()
                 with self.driver.session() as session:
                     raw_results = [dict(r) for r in session.run(cypher)]
+                timing_neo4j_cypher_end = time.perf_counter()
+                logger.info(f"⏱️  Neo4j Cypher execution took: {timing_neo4j_cypher_end - timing_neo4j_cypher_start:.2f}s")
+
+                timing_cypher_total = time.perf_counter() - timing_cypher_total_start
+                logger.info(f"⏱️  TOTAL Cypher search took: {timing_cypher_total:.2f}s")
 
                 if raw_results:
                     logger.info(f"✓ Cypher search found {len(raw_results)} results")
@@ -1103,13 +1117,17 @@ class ProductionRetriever:
     
     def vector_search(self, question: str) -> List[Dict]:
         """Vector search"""
+        timing_vector_total_start = time.perf_counter()
         logger.info("=== VECTOR Search Started ===")
         logger.info(f"Query: {question}")
         logger.debug("Computing embeddings via Gemini API...")
 
         try:
             # embed_query() returns a list directly (no need for .tolist())
+            timing_embedding_start = time.perf_counter()
             emb = self.embedder.embed_query(question)
+            timing_embedding_end = time.perf_counter()
+            logger.info(f"⏱️  Gemini embeddings API took: {timing_embedding_end - timing_embedding_start:.2f}s")
             logger.debug(f"Embedding computed via API, dimension: {len(emb)}")
             
             # Increased WHERE sim > 0.3 for slightly stricter similarity
@@ -1130,10 +1148,16 @@ class ProductionRetriever:
                    p.content as content, p.url as url, sim as similarity
             ORDER BY sim DESC LIMIT 15
             """ # Limit increased to 15 to provide more candidates for hybrid selection
-            
+
             logger.debug("Executing vector similarity query...")
+            timing_neo4j_vector_start = time.perf_counter()
             with self.driver.session() as session:
                 results = [dict(r) for r in session.run(cypher, emb=emb)]
+            timing_neo4j_vector_end = time.perf_counter()
+            logger.info(f"⏱️  Neo4j vector similarity took: {timing_neo4j_vector_end - timing_neo4j_vector_start:.2f}s")
+
+            timing_vector_total = time.perf_counter() - timing_vector_total_start
+            logger.info(f"⏱️  TOTAL Vector search took: {timing_vector_total:.2f}s")
 
             if results:
                 logger.info(f"✓ Vector search found {len(results)} similar pages")
@@ -1246,22 +1270,26 @@ class ProductionRetriever:
       This version returns all Cypher results and the top 5 *ranked* vector results.
       It also maintains the internal hybrid logic for display purposes.
       """
+      timing_retrieve_total_start = time.perf_counter()
 
       # Internal print statements for debugging/tracking, as per original functionality
       logger.info("="*70)
       logger.info(f"RETRIEVE called with QUERY: {question}")
       logger.info("="*70)
-      
+
       # --- Step 1: Get ALL Cypher results ---
       # The cypher_search function already handles its own internal logging
       all_cypher_results = self.cypher_search(question)
-      
+
       # --- Step 2: Get ALL raw Vector results, then rank and take the top 5 ---
       # The vector_search function already handles its own internal logging
       raw_vector_results = self.vector_search(question)
-      
+
       # Apply _rank_results to the *raw* vector results to score them
+      timing_ranking_start = time.perf_counter()
       scored_vector_results = self._rank_results(raw_vector_results, question)
+      timing_ranking_end = time.perf_counter()
+      logger.info(f"⏱️  Vector result ranking took: {timing_ranking_end - timing_ranking_start:.3f}s")
       # Take only the top 10 most relevant vector results
       top_5_vector_results = scored_vector_results[:5]
 
@@ -1292,10 +1320,15 @@ class ProductionRetriever:
                   break
       
       # Rank the *combined* set for internal display/use
+      timing_hybrid_ranking_start = time.perf_counter()
       ranked_for_internal_display = self._rank_results(hybrid_combined_results, question)
+      timing_hybrid_ranking_end = time.perf_counter()
+      logger.info(f"⏱️  Hybrid result ranking took: {timing_hybrid_ranking_end - timing_hybrid_ranking_start:.3f}s")
 
       # --- Step 4: Return the specific results as requested ---
+      timing_retrieve_total = time.perf_counter() - timing_retrieve_total_start
       logger.info(f"Retrieval complete. Cypher: {len(all_cypher_results)}, Vector (top 5): {len(top_5_vector_results)}, Hybrid: {len(ranked_for_internal_display)}")
+      logger.info(f"⏱️  TOTAL RETRIEVE took: {timing_retrieve_total:.2f}s")
       logger.info("="*70)
 
       return {

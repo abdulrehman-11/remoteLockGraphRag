@@ -26,6 +26,7 @@ print("MAIN.PY: Cache env vars set", flush=True)
 import operator
 import logging
 import threading
+import time
 from datetime import datetime
 from typing import Annotated, List, Tuple, Union, Dict, Any, TypedDict
 
@@ -661,6 +662,8 @@ def retrieve_documentation(query: str) -> Dict[str, Any]:
     - 'top_5_vector_results': The top 5 most relevant results from the vector search, after ranking.
     - 'hybrid_ranked_for_display': A combined and ranked list of results suitable for internal display.
     """
+    timing_tool_start = time.perf_counter()
+    logger.info("=" * 50)
     logger.info(f"retrieve_documentation tool called with query: {query}")
 
     if retriever_instance is None:
@@ -670,7 +673,12 @@ def retrieve_documentation(query: str) -> Dict[str, Any]:
     try:
         # The retriever's retrieve method already returns the desired structure
         result = retriever_instance.retrieve(query)
+        timing_tool_end = time.perf_counter()
+        tool_duration = timing_tool_end - timing_tool_start
+
         logger.info(f"Retrieval successful. Cypher results: {len(result.get('all_cypher_results', []))}, Vector results: {len(result.get('top_5_vector_results', []))}")
+        logger.info(f"⏱️  Total retrieve_documentation took: {tool_duration:.2f}s")
+        logger.info("=" * 50)
         return result
     except Exception as e:
         logger.error(f"Error during retrieval: {e}", exc_info=True)
@@ -691,6 +699,8 @@ class GraphState(TypedDict):
 # --- LangGraph Nodes ---
 def call_llm(state: GraphState) -> GraphState:
     """Invokes the LLM to generate a response or call a tool."""
+    timing_start_total = time.perf_counter()
+    logger.info("=" * 50)
     logger.info("call_llm node invoked")
     messages = state["messages"]
     sitemap_context = state["sitemap"]
@@ -841,9 +851,18 @@ def call_llm(state: GraphState) -> GraphState:
     llm_messages = [AIMessage(content=system_instruction, role='system')] + messages
 
     logger.info("Invoking LLM with tools...")
+    timing_llm_start = time.perf_counter()
     try:
         response = llm_with_tools.invoke(llm_messages)
+        timing_llm_end = time.perf_counter()
+        llm_duration = timing_llm_end - timing_llm_start
+
+        logger.info(f"⏱️  LLM API call took: {llm_duration:.2f}s")
         logger.info(f"LLM response received. Tool calls: {len(response.tool_calls) if hasattr(response, 'tool_calls') and response.tool_calls else 0}")
+
+        timing_total_duration = time.perf_counter() - timing_start_total
+        logger.info(f"⏱️  Total call_llm duration: {timing_total_duration:.2f}s")
+        logger.info("=" * 50)
 
         # LangGraph will use operator.add to append this response to the state's messages list.
         return {"messages": [response]}
@@ -1107,7 +1126,10 @@ async def chat_endpoint(chat_message: ChatMessage) -> Dict[str, str]:
     """
     Handle incoming chat messages and generate a response using the LangGraph agent.
     """
-    logger.info(f"Received chat request: {chat_message.message[:100]}...")
+    timing_request_start = time.perf_counter()
+    logger.info("=" * 70)
+    logger.info(f"📨 NEW CHAT REQUEST: {chat_message.message[:100]}...")
+    logger.info("=" * 70)
 
     # Lazy-load retriever on first request
     if retriever_instance is None:
@@ -1116,7 +1138,10 @@ async def chat_endpoint(chat_message: ChatMessage) -> Dict[str, str]:
 
         try:
             # This will block for ~60 seconds on FIRST request only
+            timing_init_start = time.perf_counter()
             ensure_retriever_initialized()
+            timing_init_end = time.perf_counter()
+            logger.info(f"⏱️  Retriever initialization took: {timing_init_end - timing_init_start:.2f}s")
         except Exception as e:
             logger.error(f"Failed to initialize retriever: {e}")
             return {"response": "Failed to initialize the AI assistant. Please try again or contact support."}
@@ -1141,7 +1166,11 @@ async def chat_endpoint(chat_message: ChatMessage) -> Dict[str, str]:
         # Run the graph. LangGraph will manage the `messages` state list internally
         # by appending LLM responses and FunctionMessages from tool calls.
         logger.info("Invoking LangGraph agent...")
+        timing_graph_start = time.perf_counter()
         final_state = app_graph.invoke(initial_state_for_this_turn)
+        timing_graph_end = time.perf_counter()
+        graph_duration = timing_graph_end - timing_graph_start
+        logger.info(f"⏱️  LangGraph execution took: {graph_duration:.2f}s")
         logger.info("LangGraph execution completed")
 
         # The last message in the final state should be the agent's ultimate response
@@ -1154,7 +1183,11 @@ async def chat_endpoint(chat_message: ChatMessage) -> Dict[str, str]:
             else str(agent_final_response) if agent_final_response else "I couldn't generate a response."
         )
 
-        logger.info(f"Response generated successfully. Length: {len(response_content)} chars")
+        timing_total_request = time.perf_counter() - timing_request_start
+        logger.info("=" * 70)
+        logger.info(f"✅ TOTAL REQUEST TIME: {timing_total_request:.2f}s")
+        logger.info(f"Response length: {len(response_content)} chars")
+        logger.info("=" * 70)
         return {"response": response_content}
 
     except Exception as e:
