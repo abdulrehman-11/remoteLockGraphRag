@@ -981,6 +981,53 @@ async def health_check():
         "gemini_api_configured": GEMINI_API_KEY is not None
     }
 
+@app.get("/cache/stats")
+async def get_cache_stats():
+    """Return cache performance statistics for monitoring optimization effectiveness"""
+    if retriever_instance is None:
+        return {
+            "error": "Retriever not initialized",
+            "note": "Cache stats unavailable until retriever is initialized"
+        }
+
+    if not hasattr(retriever_instance, 'cache') or retriever_instance.cache is None:
+        return {
+            "error": "Cache not available",
+            "note": "Multi-layer cache is not enabled or failed to initialize"
+        }
+
+    try:
+        stats = retriever_instance.cache.get_stats()
+        return {
+            "status": "ok",
+            "cache_stats": {
+                "l1_results_cache": {
+                    "hits": stats['l1_hits'],
+                    "misses": stats['l1_misses'],
+                    "hit_rate": f"{stats['l1_hit_rate']:.2%}",
+                    "description": "Complete retrieval results (fastest, 1 hour TTL)"
+                },
+                "l2_cypher_cache": {
+                    "hits": stats['l2_hits'],
+                    "misses": stats['l2_misses'],
+                    "hit_rate": f"{stats['l2_hit_rate']:.2%}",
+                    "description": "Generated Cypher queries (2 hours TTL)"
+                },
+                "l3_embedding_cache": {
+                    "hits": stats['l3_hits'],
+                    "misses": stats['l3_misses'],
+                    "hit_rate": f"{stats['l3_hit_rate']:.2%}",
+                    "description": "Query embeddings (24 hours TTL)"
+                }
+            },
+            "note": "Cache hit rates improve with repeated queries. Higher hit rates = faster responses."
+        }
+    except Exception as e:
+        return {
+            "error": f"Failed to retrieve cache stats: {str(e)}",
+            "status": "error"
+        }
+
 @app.get("/sitemap/")
 async def get_sitemap():
     """Return the sitemap structure for frontend category navigation"""
